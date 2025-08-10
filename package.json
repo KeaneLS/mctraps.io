@@ -1,5 +1,5 @@
 {
-  "name": "mctraps.io",
+  "name": "mctraps.com",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
@@ -12,5 +12,8 @@
   "description": "",
   "devDependencies": {
     "concurrently": "^9.2.0"
+  },
+  "dependencies": {
+    "@mui/icons-material": "^7.2.0"
   }
 }
