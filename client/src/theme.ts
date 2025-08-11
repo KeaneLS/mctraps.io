@@ -14,42 +14,53 @@ declare module '@mui/material/styles' {
 }
 
 const colors = {
-  brand: '#facc15',
-  light: '#ecfdf5',
-  dark: '#18181b',
+  brand: '#38bdf8',
+  light: '#fafafa', // light surface
+  dark: '#18181b',   // dark surface
 };
 
-const theme = createTheme({
-  palette: {
-    mode: 'light',
-    primary: {
-      main: colors.brand,
+export type AppThemeMode = 'light' | 'dark';
+
+export const createAppTheme = (mode: AppThemeMode = 'dark') => {
+  const isLight = mode === 'light';
+  const backgroundDefault = isLight ? colors.light : colors.dark;
+  const backgroundPaper = backgroundDefault;
+  const textPrimary = isLight ? colors.dark : colors.light;
+  // Swap the meaning of custom light/dark swatches when in light mode
+  const paletteLightMain = isLight ? colors.dark : colors.light;
+  const paletteDarkMain = isLight ? colors.light : colors.dark;
+
+  return createTheme({
+    palette: {
+      mode,
+      primary: {
+        main: colors.brand,
+      },
+      secondary: {
+        main: colors.light,
+        contrastText: colors.dark,
+      },
+      background: {
+        default: backgroundDefault,
+        paper: backgroundPaper,
+      },
+      text: {
+        primary: textPrimary,
+        secondary: colors.brand,
+      },
+      brand: {
+        main: colors.brand,
+        contrastText: colors.dark,
+      },
+      light: {
+        main: paletteLightMain,
+        contrastText: colors.dark,
+      },
+      dark: {
+        main: paletteDarkMain,
+        contrastText: colors.light,
+      },
     },
-    secondary: {
-      main: colors.light,
-      contrastText: colors.dark,
-    },
-    background: {
-      default: colors.dark,
-      paper: colors.dark,
-    },
-    text: {
-      primary: colors.light,
-      secondary: colors.brand,
-    },
-    brand: {
-      main: colors.brand,
-      contrastText: colors.dark,
-    },
-    light: {
-      main: colors.light,
-      contrastText: colors.dark,
-    },
-    dark: {
-      main: colors.dark,
-      contrastText: colors.light,
-    },
-  },
   typography: {
     fontFamily: 'Lato, sans-serif',
     htmlFontSize: 16,
@@ -112,7 +123,7 @@ const theme = createTheme({
       letterSpacing: '0.005em',
     },
   },
-  components: {
+    components: {
     MuiCssBaseline: {
       styleOverrides: (themeParam) => ({
         body: {
@@ -151,9 +162,15 @@ const theme = createTheme({
         },
       },
     },
-  },
-});
+    },
+  });
+};
 
+// Prebuilt themes for convenience
+export const darkTheme = createAppTheme('dark');
+export const lightTheme = createAppTheme('light');
+
+const theme = darkTheme;
 export default theme;
 
 
