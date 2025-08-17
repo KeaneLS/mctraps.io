@@ -13,6 +13,22 @@ declare module '@mui/material/styles' {
   }
 }
 
+// Allow using custom palette keys on component `color` props
+declare module '@mui/material/Button' {
+  interface ButtonPropsColorOverrides {
+    brand: true;
+    light: true;
+    dark: true;
+  }
+}
+declare module '@mui/material/IconButton' {
+  interface IconButtonPropsColorOverrides {
+    brand: true;
+    light: true;
+    dark: true;
+  }
+}
+
 const colors = {
   brand: '#38bdf8',
   light: '#fafafa', // light surface

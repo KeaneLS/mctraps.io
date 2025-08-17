@@ -1,8 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { ThemeProvider, CssBaseline, Typography } from '@mui/material';
-import theme from './theme';
-import Logo from './components/icons/logo';
+import Landing from './pages/landing';
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
@@ -10,9 +8,6 @@ const root = ReactDOM.createRoot(
 
 root.render(
   <React.StrictMode>
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Logo />
-    </ThemeProvider>
+    <Landing />
   </React.StrictMode>
 );

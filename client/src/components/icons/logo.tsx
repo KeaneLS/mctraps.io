@@ -12,9 +12,15 @@ export type LogoProps = MotionProps & React.HTMLAttributes<HTMLDivElement> & {
   'aria-label'?: string;
   retractOffset?: number;
   retractDuration?: number;
+  // When this number changes, the retract animation will be triggered
+  triggerKey?: number;
 };
 
-const Logo: React.FC<LogoProps> = ({
+export type LogoHandle = {
+  retract: () => Promise<void>;
+};
+
+const Logo = React.forwardRef<LogoHandle, LogoProps>(({ 
   armHeadSrc,
   baseSrc,
   gapSrc,
@@ -24,8 +30,9 @@ const Logo: React.FC<LogoProps> = ({
   style,
   retractOffset = 77,
   retractDuration = 0.5,
+  triggerKey,
   ...motionProps
-}) => {
+}, ref) => {
   const baseUrl = process.env.PUBLIC_URL ?? '';
   const defaultArmHead = armHeadSrc ?? `${baseUrl}/logo/armhead.png`;
   const defaultBase = baseSrc ?? `${baseUrl}/logo/base.png`;
@@ -46,9 +53,8 @@ const Logo: React.FC<LogoProps> = ({
     ...restMotionProps
   } = motionProps;
 
-  const handleHoverStart = async (event: unknown, info: unknown) => {
+  const playRetract = async () => {
     if (isAnimatingRef.current) {
-      if (typeof userOnHoverStart === 'function') userOnHoverStart(event as any, info as any);
       return;
     }
     isAnimatingRef.current = true;
@@ -63,12 +69,28 @@ const Logo: React.FC<LogoProps> = ({
       },
     });
     isAnimatingRef.current = false;
+  };
+
+  const handleHoverStart = async (event: unknown, info: unknown) => {
+    await playRetract();
     if (typeof userOnHoverStart === 'function') userOnHoverStart(event as any, info as any);
   };
 
   const handleHoverEnd = (event: unknown, info: unknown) => {
     if (typeof userOnHoverEnd === 'function') userOnHoverEnd(event as any, info as any);
   };
+
+  // Allow external triggers (e.g., hovering a wrapper that contains the logo and text)
+  React.useEffect(() => {
+    if (typeof triggerKey !== 'number') return;
+    // Mimic the same animation as hover start
+    playRetract();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [triggerKey]);
+
+  React.useImperativeHandle(ref, () => ({
+    retract: playRetract,
+  }));
 
   return (
     <motion.div
@@ -155,7 +177,7 @@ const Logo: React.FC<LogoProps> = ({
       />
     </motion.div>
   );
-};
+});
 
 export default Logo;
 
