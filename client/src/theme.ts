@@ -30,7 +30,7 @@ declare module '@mui/material/IconButton' {
 }
 
 const colors = {
-  brand: '#38bdf8',
+  brand: '#4ade80',
   light: '#fafafa', // light surface
   dark: '#18181b',   // dark surface
 };

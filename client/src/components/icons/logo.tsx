@@ -44,7 +44,8 @@ const Logo = React.forwardRef<LogoHandle, LogoProps>(({
   const controls = useAnimationControls();
   const isAnimatingRef = React.useRef<boolean>(false);
   const theme = useTheme();
-  const gapColor = theme.palette.background.default;
+  const armBaseColor = theme.palette.light.main;
+  const gapColor = theme.palette.dark.main;
 
   const {
     animate: containerAnimate,
@@ -106,21 +107,26 @@ const Logo = React.forwardRef<LogoHandle, LogoProps>(({
       animate={containerAnimate as any}
       onHoverStart={handleHoverStart}
       onHoverEnd={handleHoverEnd}
+      role="img"
+      aria-label={alt}
       {...restMotionProps}
     >
-      <motion.img
-        src={currentArmHead}
-        alt=""
+      <motion.div
         aria-hidden="true"
-        draggable={false}
-        loading="eager"
-        decoding="async"
         style={{
           position: 'absolute',
           inset: 0,
           width: '100%',
           height: '100%',
-          objectFit: 'contain',
+          backgroundColor: armBaseColor,
+          WebkitMaskImage: `url(${currentArmHead})`,
+          WebkitMaskRepeat: 'no-repeat',
+          WebkitMaskPosition: 'center',
+          WebkitMaskSize: 'contain',
+          maskImage: `url(${currentArmHead})`,
+          maskRepeat: 'no-repeat',
+          maskPosition: 'center',
+          maskSize: 'contain',
           willChange: 'transform',
           userSelect: 'none',
           pointerEvents: 'none',
@@ -128,9 +134,6 @@ const Logo = React.forwardRef<LogoHandle, LogoProps>(({
         }}
         initial={{ y: 0 }}
         animate={controls}
-        onError={() => {
-          if (currentArmHead !== fallbackSrc) setCurrentArmHead(fallbackSrc);
-        }}
       />
 
       <div
@@ -154,25 +157,25 @@ const Logo = React.forwardRef<LogoHandle, LogoProps>(({
         }}
       />
 
-      <img
-        src={currentBase}
-        alt={alt}
-        aria-label={alt}
-        draggable={false}
-        loading="eager"
-        decoding="async"
+      <div
+        aria-hidden="true"
         style={{
           position: 'absolute',
           inset: 0,
           width: '100%',
           height: '100%',
-          objectFit: 'contain',
+          backgroundColor: armBaseColor,
+          WebkitMaskImage: `url(${currentBase})`,
+          WebkitMaskRepeat: 'no-repeat',
+          WebkitMaskPosition: 'center',
+          WebkitMaskSize: 'contain',
+          maskImage: `url(${currentBase})`,
+          maskRepeat: 'no-repeat',
+          maskPosition: 'center',
+          maskSize: 'contain',
           userSelect: 'none',
           pointerEvents: 'none',
           zIndex: 3,
-        }}
-        onError={() => {
-          if (currentBase !== fallbackSrc) setCurrentBase(fallbackSrc);
         }}
       />
     </motion.div>
