@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAnalytics, isSupported } from "firebase/analytics";
+import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
@@ -11,15 +11,7 @@ const firebaseConfig = {
   measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID,
 };
 
-export const app = initializeApp(firebaseConfig);
+console.log("Firebase config:", firebaseConfig);
 
-export const analyticsPromise = (async () => {
-  try {
-    if (typeof window === 'undefined') return null;
-    if (!firebaseConfig.measurementId) return null;
-    const supported = await isSupported();
-    return supported ? getAnalytics(app) : null;
-  } catch {
-    return null;
-  }
-})();
+export const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app);
