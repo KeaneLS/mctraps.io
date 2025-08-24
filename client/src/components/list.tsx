@@ -12,13 +12,16 @@ import {
 import { useTheme, alpha } from '@mui/material/styles';
 import { Search, ExpandMore } from '@mui/icons-material';
 import { S as TierS, A as TierA, B as TierB, C as TierC, D as TierD, E as TierE, F as TierF } from '../tiers';
+import { readTraps } from '../firebase/dataAccess';
 
 type Trap = {
   id: string;
   name: string;
   creators: string[];
-  thumbnailPath: string;
+  thumbnailPath?: string;
+  thumbnailId?: string;
   rating?: { average: number; count: number };
+  tierlistRating?: { average: number; count: number };
 };
 
 const useFetchTraps = () => {
@@ -31,9 +34,7 @@ const useFetchTraps = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const res = await fetch('/api/traps');
-        if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-        const data = (await res.json()) as Trap[];
+        const data = (await readTraps()) as unknown as Trap[];
         if (!cancelled) setTraps(data);
       } catch (err) {
         if (!cancelled) setError((err as Error).message);
@@ -103,7 +104,9 @@ const TrapRow: React.FC<{ trap: Trap }> = ({ trap }) => {
   const surfaceBorder = alpha(theme.palette.light.main, 0.12);
   const hoverBg = alpha(theme.palette.light.main, 0.12);
 
-  const rounded = Math.max(0, Math.min(6, Math.round(trap.rating?.average ?? 0)));
+  const avg = trap.rating?.average ?? trap.tierlistRating?.average ?? 0;
+  const cnt = trap.rating?.count ?? trap.tierlistRating?.count ?? undefined;
+  const rounded = Math.max(0, Math.min(6, Math.round(avg)));
   const Tier = (
     rounded === 6 ? TierS :
     rounded === 5 ? TierA :
@@ -113,6 +116,7 @@ const TrapRow: React.FC<{ trap: Trap }> = ({ trap }) => {
     rounded === 1 ? TierE :
     TierF
   );
+  const thumbnailSrc = trap.thumbnailPath || trap.thumbnailId || '';
 
   return (
     <Paper
@@ -135,7 +139,7 @@ const TrapRow: React.FC<{ trap: Trap }> = ({ trap }) => {
       <Stack direction="row" spacing={2} alignItems="center">
         <Box
           component="img"
-          src={trap.thumbnailPath}
+          src={thumbnailSrc}
           alt={trap.name}
           sx={{
             width: 220,
@@ -155,7 +159,7 @@ const TrapRow: React.FC<{ trap: Trap }> = ({ trap }) => {
           <Box mt={0.9} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Tier size={28}/>
             <Typography variant="body2" sx={{ opacity: 0.5, fontWeight: 500 }} noWrap>
-                {trap.rating?.count} rankings
+                {cnt ?? 0} rankings
             </Typography>
           </Box>
         </Box>
