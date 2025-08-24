@@ -1,5 +1,5 @@
 import { db } from "./config";
-import { collection, addDoc } from "firebase/firestore";
+import { collection, addDoc, getDocs } from "firebase/firestore";
 
 async function addMyData() {
   try {
