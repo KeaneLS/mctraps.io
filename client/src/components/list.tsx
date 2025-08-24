@@ -69,7 +69,7 @@ const SearchBar: React.FC = () => {
         gap: 1,
         px: 1,
         py: 0.5,
-        borderRadius: 4,
+        borderRadius: 2,
         bgcolor: surfaceBg,
         border: `1px solid ${surfaceBorder}`,
       }}
@@ -83,7 +83,7 @@ const SearchBar: React.FC = () => {
           px: 1.25,
           minWidth: 0,
           color: 'text.primary',
-          borderRadius: 4,
+          borderRadius: 2,
           '&:hover': { bgcolor: alpha(theme.palette.light.main, 0.06) }
         }}
       >
@@ -114,7 +114,7 @@ const TrapRow: React.FC<{ trap: Trap }> = ({ trap }) => {
       sx={{
         bgcolor: surfaceBg,
         border: `1px solid ${surfaceBorder}`,
-        borderRadius: 4,
+        borderRadius: 2,
         p: 1.25,
         transition: 'background-color 120ms ease, transform 120ms ease, border-color 120ms ease',
         '&:hover': {
@@ -132,7 +132,7 @@ const TrapRow: React.FC<{ trap: Trap }> = ({ trap }) => {
             width: 220,
             height: 120,
             objectFit: 'cover',
-            borderRadius: 4,
+            borderRadius: 2,
             display: 'block',
           }}
         />

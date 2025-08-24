@@ -59,7 +59,7 @@ const Navbar: React.FC<NavbarProps> = ({ mode = 'light', onToggleTheme }) => {
       <Paper
         elevation={0}
         sx={{
-          borderRadius: 4,
+          borderRadius: 2,
           px: 2,
           py: 1,
           bgcolor: surfaceBg,
