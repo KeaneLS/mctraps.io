@@ -1,5 +1,5 @@
 import { db } from "./config";
-import { collection, addDoc, getDocs } from "firebase/firestore";
+import { collection, addDoc, getDocs, QueryDocumentSnapshot, DocumentData } from "firebase/firestore";
 
 function getYouTubeInfo(url: string) {
   const urlObj = new URL(url);
@@ -78,7 +78,7 @@ export async function writeTrap(
 
 export async function readTraps() {
   const querySnapshot = await getDocs(collection(db, "traps"));
-  const traps = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const traps = querySnapshot.docs.map((doc: QueryDocumentSnapshot<DocumentData>) => ({ id: doc.id, ...doc.data() }));
   console.log(traps);
   return traps;
 }

@@ -1,6 +1,6 @@
 import React from 'react';
 import { ThemeProvider, CssBaseline, Box } from '@mui/material';
-import theme, { darkTheme, lightTheme, AppThemeMode } from '../theme';
+import { darkTheme, lightTheme, AppThemeMode } from '../theme';
 import Navbar from '../components/Navbar';
 import TrapList from '../components/list';
 
