@@ -1,6 +1,31 @@
 import { db } from "./config";
 import { collection, addDoc, getDocs, QueryDocumentSnapshot, DocumentData } from "firebase/firestore";
 
+function getYouTubeThumbnail(youtubeUrl: string): string {
+  let videoId: string;
+
+  try {
+    const urlObj = new URL(youtubeUrl);
+
+    if (urlObj.hostname.includes('youtu.be')) {
+      videoId = urlObj.pathname.slice(1); // short URL: youtu.be/VIDEO_ID
+    } else if (urlObj.hostname.includes('youtube.com')) {
+      videoId = urlObj.searchParams.get('v') || '';
+    } else {
+      throw new Error('Invalid YouTube URL');
+    }
+
+    if (!videoId) throw new Error('Could not extract video ID');
+
+    // Return the thumbnail URL
+    return `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
+
+  } catch (error) {
+    console.error('Error getting thumbnail:', error);
+    return '';
+  }
+}
+
 function getYouTubeInfo(url: string) {
   const urlObj = new URL(url);
   let youtubeId: string | null = null;
@@ -26,15 +51,10 @@ function getYouTubeInfo(url: string) {
   };
 }
 
-// Example usage
-const input = 'https://www.youtube.com/watch?v=QPzOv35nrpc';
-const result = getYouTubeInfo(input);
-console.log(result);
-
 interface TrapComment {
   user: string;
   text: string;
-  date: string; // ISO date string
+  date: string; // year-month-day
 }
 
 interface TrapRating {
@@ -48,7 +68,7 @@ export async function writeTrap(
   dateInvented: string,
   type: "main" | "backup",
   videoUrl: string,
-  thumbnailId: string,
+  thumbnailUrl: string,
   minigame: string,
   tierlistRating: TrapRating,
   comments: TrapComment[]
@@ -56,13 +76,18 @@ export async function writeTrap(
   try {
     const video = getYouTubeInfo(videoUrl);
 
+    // If a thumbnail url is not entered, use the youtube video's url
+    if (thumbnailUrl === ""){
+      thumbnailUrl = getYouTubeThumbnail(videoUrl)
+    }
+
     const docRef = await addDoc(collection(db, "traps"), {
       name,
       creators,
       dateInvented,
       type,
       video,
-      thumbnailId,
+      thumbnailUrl,
       minigame,
       tierlistRating,
       comments,
@@ -79,6 +104,6 @@ export async function writeTrap(
 export async function readTraps() {
   const querySnapshot = await getDocs(collection(db, "traps"));
   const traps = querySnapshot.docs.map((doc: QueryDocumentSnapshot<DocumentData>) => ({ id: doc.id, ...doc.data() }));
-  console.log(traps);
+  console.log("Read the following traps:", traps);
   return traps;
 }

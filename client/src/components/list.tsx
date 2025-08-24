@@ -19,7 +19,7 @@ type Trap = {
   name: string;
   creators: string[];
   thumbnailPath?: string;
-  thumbnailId?: string;
+  thumbnailUrl?: string;
   rating?: { average: number; count: number };
   tierlistRating?: { average: number; count: number };
 };
@@ -116,7 +116,7 @@ const TrapRow: React.FC<{ trap: Trap }> = ({ trap }) => {
     rounded === 1 ? TierE :
     TierF
   );
-  const thumbnailSrc = trap.thumbnailPath || trap.thumbnailId || '';
+  const thumbnailSrc = trap.thumbnailUrl || '';
 
   return (
     <Paper
