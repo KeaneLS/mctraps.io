@@ -7,7 +7,6 @@ const PORT = 5000;
 
 app.use(express.json());
 
-// Basic CORS for local development
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
@@ -22,7 +21,6 @@ app.get('/api/hello', (req, res) => {
   res.json({ message: 'Hello from Express!' });
 });
 
-// API routes
 app.use('/api', trapsRouter);
 
 app.listen(PORT, () => {

@@ -27,6 +27,7 @@ const TierBadge: React.FC<TierBadgeProps> = ({ label, hexBg, size = 28 }) => {
       <Typography
         variant="caption"
         sx={{
+          color: '#18181b',
           fontWeight: 700,
           lineHeight: 1,
           textAlign: 'center',

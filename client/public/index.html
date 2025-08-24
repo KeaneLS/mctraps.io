@@ -2,7 +2,23 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <!-- Default/icon fallback -->
     <link rel="icon" href="%PUBLIC_URL%/mctraps_favicon.svg" />
+    <!-- Set favicon once on initial load based on color scheme (no listeners) -->
+    <script>
+      (function() {
+        try {
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var link = document.querySelector('link[rel="icon"]');
+          if (!link) {
+            link = document.createElement('link');
+            link.rel = 'icon';
+            document.head.appendChild(link);
+          }
+          link.href = prefersDark ? '%PUBLIC_URL%/mctraps_light_favicon.svg' : '%PUBLIC_URL%/mctraps_dark_favicon.svg';
+        } catch (e) { /* no-op */ }
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
     <meta

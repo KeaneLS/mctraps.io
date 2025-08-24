@@ -5,7 +5,12 @@ import Navbar from '../components/Navbar';
 import TrapList from '../components/list';
 
 const Landing: React.FC = () => {
-  const [mode, setMode] = React.useState<AppThemeMode>('light');
+  const [mode, setMode] = React.useState<AppThemeMode>(() => {
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    return 'light';
+  });
   const currentTheme = mode === 'light' ? lightTheme : darkTheme;
   const toggleMode = React.useCallback(() => {
     setMode((prev) => (prev === 'light' ? 'dark' : 'light'));

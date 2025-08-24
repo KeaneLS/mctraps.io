@@ -81,12 +81,9 @@ const Logo = React.forwardRef<LogoHandle, LogoProps>(({
     if (typeof userOnHoverEnd === 'function') userOnHoverEnd(event as any, info as any);
   };
 
-  // Allow external triggers (e.g., hovering a wrapper that contains the logo and text)
   React.useEffect(() => {
     if (typeof triggerKey !== 'number') return;
-    // Mimic the same animation as hover start
     playRetract();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [triggerKey]);
 
   React.useImperativeHandle(ref, () => ({

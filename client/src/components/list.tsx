@@ -11,19 +11,14 @@ import {
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import { Search, ExpandMore } from '@mui/icons-material';
+import { S as TierS, A as TierA, B as TierB, C as TierC, D as TierD, E as TierE, F as TierF } from '../tiers';
 
 type Trap = {
   id: string;
   name: string;
   creators: string[];
   thumbnailPath: string;
-};
-
-const normalizeThumbnailPath = (path: string): string => {
-  // The backend dummy data includes "/public" in the path; CRA serves public files from root
-  // so we strip the leading "/public" if present.
-  if (path.startsWith('/public/')) return path.replace('/public', '');
-  return path;
+  rating?: { average: number; count: number };
 };
 
 const useFetchTraps = () => {
@@ -106,7 +101,18 @@ const TrapRow: React.FC<{ trap: Trap }> = ({ trap }) => {
   const theme = useTheme();
   const surfaceBg = alpha(theme.palette.light.main, 0.06);
   const surfaceBorder = alpha(theme.palette.light.main, 0.12);
-  const hoverBg = alpha(theme.palette.light.main, 0.08);
+  const hoverBg = alpha(theme.palette.light.main, 0.12);
+
+  const rounded = Math.max(0, Math.min(6, Math.round(trap.rating?.average ?? 0)));
+  const Tier = (
+    rounded === 6 ? TierS :
+    rounded === 5 ? TierA :
+    rounded === 4 ? TierB :
+    rounded === 3 ? TierC :
+    rounded === 2 ? TierD :
+    rounded === 1 ? TierE :
+    TierF
+  );
 
   return (
     <Paper
@@ -116,17 +122,20 @@ const TrapRow: React.FC<{ trap: Trap }> = ({ trap }) => {
         border: `1px solid ${surfaceBorder}`,
         borderRadius: 2,
         p: 1.25,
-        transition: 'background-color 120ms ease, transform 120ms ease, border-color 120ms ease',
+        position: 'relative',
+        transition: 'background-color 120ms ease, transform 150ms ease, border-color 120ms ease',
         '&:hover': {
           bgcolor: hoverBg,
           borderColor: alpha(theme.palette.light.main, 0.18),
+          transform: 'scale(1.02)',
+          zIndex: 1,
         },
       }}
     >
       <Stack direction="row" spacing={2} alignItems="center">
         <Box
           component="img"
-          src={normalizeThumbnailPath(trap.thumbnailPath)}
+          src={trap.thumbnailPath}
           alt={trap.name}
           sx={{
             width: 220,
@@ -136,13 +145,19 @@ const TrapRow: React.FC<{ trap: Trap }> = ({ trap }) => {
             display: 'block',
           }}
         />
-        <Box sx={{ minWidth: 0 }}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }} noWrap>
+        <Box sx={{ minWidth: 0, flex: 1  }}>
+          <Typography variant="h5" sx={{ fontWeight: 700 }} noWrap>
             {trap.name}
           </Typography>
-          <Typography variant="body1" sx={{ opacity: 0.9 }} noWrap>
+          <Typography variant="body1" sx={{ opacity: 0.7, fontWeight: 500 }} noWrap>
             {trap.creators.join(', ')}
           </Typography>
+          <Box mt={0.9} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Tier size={28}/>
+            <Typography variant="body2" sx={{ opacity: 0.5, fontWeight: 500 }} noWrap>
+                {trap.rating?.count} rankings
+            </Typography>
+          </Box>
         </Box>
       </Stack>
     </Paper>

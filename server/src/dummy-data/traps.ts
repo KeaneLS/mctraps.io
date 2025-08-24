@@ -44,9 +44,9 @@ export const traps: Trap[] = [
       embedUrl: 'https://www.youtube.com/embed/QPzOv35nrpc',
       watchUrl: 'https://www.youtube.com/watch?v=QPzOv35nrpc'
     },
-    thumbnailPath: '/public/dummy-thumbnails/afk-player-farm.jpg',
+    thumbnailPath: '/dummy-thumbnails/afk-player-farm.jpg',
     minigame: 'Hoplite',
-    rating: { average: 5.16, count: 128 },
+    rating: { average: 5.7, count: 128 },
     comments: [
       {
         user: 'Steve',
@@ -71,7 +71,7 @@ export const traps: Trap[] = [
       embedUrl: 'https://www.youtube.com/embed/DO_FTXfUgjY',
       watchUrl: 'https://www.youtube.com/watch?v=DO_FTXfUgjY'
     },
-    thumbnailPath: '/public/dummy-thumbnails/reverse-sand-fall-trap.jpg',
+    thumbnailPath: '/dummy-thumbnails/reverse-sand-fall-trap.jpg',
     minigame: 'Hoplite',
     rating: { average: 4.68, count: 64 },
     comments: [
