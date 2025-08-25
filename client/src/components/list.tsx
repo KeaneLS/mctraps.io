@@ -53,13 +53,14 @@ const useFetchTraps = () => {
 };
 
 const SearchBar: React.FC<{
-	onOpenFilter: () => void;
-	filterApplied: boolean;
-	onClearFilter: () => void;
-}> = ({ onOpenFilter, filterApplied, onClearFilter }) => {
+	onToggleFilter: () => void;
+	isFilterActive: boolean;
+	onSearch: (text: string) => void;
+}> = ({ onToggleFilter, isFilterActive, onSearch }) => {
   const theme = useTheme();
   const surfaceBg = alpha(theme.palette.light.main, 0.06);
   const surfaceBorder = alpha(theme.palette.light.main, 0.12);
+  const [text, setText] = React.useState<string>('');
 
   return (
     <Paper
@@ -75,51 +76,50 @@ const SearchBar: React.FC<{
         border: `1px solid ${surfaceBorder}`,
       }}
     >
-      {!filterApplied ? (
-        <Button
-          variant="text"
-          color="inherit"
-          onClick={onOpenFilter}
-          sx={{
-            textTransform: 'none',
-            px: 1.25,
-            minWidth: 0,
-            color: 'text.primary',
-            borderRadius: 2,
-            '&:hover': { bgcolor: alpha(theme.palette.light.main, 0.06) }
-          }}
-        >
-          Filter
-        </Button>
-      ) : (
-        <Box sx={{
-          display: 'grid',
-          gridAutoFlow: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 0.5,
-          px: 1,
-          py: 0.25,
-          height: 36,
-          width: 130,
-          borderRadius: 1.5,
-          bgcolor: 'brand.main',
-          color: 'brand.contrastText',
-        }}>
-          <Typography variant="body2" sx={{ fontWeight: 700 }}>Current Filter</Typography>
-          <IconButton size="small" aria-label="clear filter" onClick={onClearFilter} sx={{ color: 'brand.contrastText', p: 0, m: 0 }}>
-            <Close fontSize="small" />
-          </IconButton>
-        </Box>
-      )}
+      <Button
+        variant="text"
+        color="inherit"
+        onClick={onToggleFilter}
+        sx={{
+          textTransform: 'none',
+          px: 1.25,
+          minWidth: 0,
+          borderRadius: 2,
+          bgcolor: isFilterActive ? 'brand.main' : 'transparent',
+          color: isFilterActive ? 'dark.main' : 'text.primary',
+          '&:hover': { bgcolor: isFilterActive ? alpha(theme.palette.brand.main, 0.9) : alpha(theme.palette.light.main, 0.06) }
+        }}
+      >
+        Filter
+      </Button>
       <Divider orientation="vertical" flexItem sx={{ borderColor: surfaceBorder }} />
       <InputBase
         placeholder="Search..."
         inputProps={{ 'aria-label': 'search traps' }}
         sx={{ flex: 1, px: 1.25, py: 0.75 }}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') onSearch(text.trim());
+        }}
       />
-      <IconButton size="small" color="inherit" sx={{ color: 'text.primary' }} aria-label="search">
-        <Search />
+      <IconButton
+        size="small"
+        aria-label="search"
+        onClick={() => onSearch(text.trim())}
+        sx={{
+          width: 32,
+          height: 32,
+          bgcolor: 'brand.main',
+          borderRadius: '50%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          p: 0,
+          '&:hover': { bgcolor: alpha(theme.palette.brand.main, 0.9) }
+        }}
+      >
+        <Search sx={{ color: theme.palette.dark.main }} />
       </IconButton>
     </Paper>
   );
@@ -200,15 +200,31 @@ const TrapList: React.FC = () => {
   const { traps, loading, error } = useFetchTraps();
   const [filterOpen, setFilterOpen] = React.useState<boolean>(false);
   const [currentFilter, setCurrentFilter] = React.useState<FilterPayload | null>(null);
+  const [searchText, setSearchText] = React.useState<string>('');
 
-  const handleOpenFilter = () => setFilterOpen(true);
+  const handleOpenFilter = () => {
+    // Toggle visibility; if closing, clear filter state
+    setFilterOpen((v) => {
+      const next = !v;
+      if (!next) setCurrentFilter(null);
+      return next;
+    });
+  };
   const handleCloseFilter = () => setFilterOpen(false);
   const handleApplyFilter = (payload: FilterPayload) => {
     setCurrentFilter(payload);
-    setFilterOpen(false);
   };
   const handleClearFilter = () => {
     setCurrentFilter(null);
+  };
+
+  const handleSearch = (text: string) => {
+    setSearchText(text);
+    const payload: FilterPayload = {
+      ...(filterOpen ? (currentFilter ?? {}) : {}),
+      search: text || undefined,
+    };
+    console.log('Search payload:', payload);
   };
 
   return (
@@ -221,11 +237,15 @@ const TrapList: React.FC = () => {
       <Stack spacing={2}>
         <Box sx={{ mt: 2 }}>
           <SearchBar
-            onOpenFilter={handleOpenFilter}
-            filterApplied={!!currentFilter}
-            onClearFilter={handleClearFilter}
+            onToggleFilter={handleOpenFilter}
+            isFilterActive={filterOpen}
+            onSearch={handleSearch}
           />
-          <FilterPanel open={filterOpen} onClose={handleCloseFilter} onApply={handleApplyFilter} />
+          {filterOpen && (
+            <Box mt={2}>
+              <FilterPanel value={currentFilter ?? {}} onChange={handleApplyFilter} />
+            </Box>
+          )}
         </Box>
 
         {loading && (

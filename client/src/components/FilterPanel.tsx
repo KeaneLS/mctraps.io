@@ -1,21 +1,16 @@
 import React from 'react';
 import {
   Box,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Typography,
-  IconButton,
-  Button,
   Stack,
   Divider,
   ToggleButtonGroup,
   ToggleButton,
-  Paper
+  Paper,
+  IconButton
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
-import { Close, ArrowUpward, ArrowDownward } from '@mui/icons-material';
+import { ArrowUpward, ArrowDownward } from '@mui/icons-material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -30,12 +25,12 @@ export type FilterPayload = {
   tierlistRating?: { ratings: TierLetter[]; direction?: 'asc' | 'desc' };
   minigames?: MinigameOption[];
   types?: TypeOption[];
+  search?: string;
 };
 
 type Props = {
-  open: boolean;
-  onClose: () => void;
-  onApply: (payload: FilterPayload) => void;
+  value?: FilterPayload;
+  onChange: (payload: FilterPayload) => void;
   // Controls how much lighter the section cards are than the dark surface (for my testing)
   cardLightness?: number;
 };
@@ -44,7 +39,7 @@ const allTierLetters: TierLetter[] = ['S','A','B','C','D','E','F'];
 const allMinigames: MinigameOption[] = ['UHC','SMP','HCF','Hoplite','Skywars','Walls','Speed UHC'];
 const allTypes: TypeOption[] = ['Main','Backup','Hybrid'];
 
-const FilterPanel: React.FC<Props> = ({ open, onClose, onApply, cardLightness = 0.04 }) => {
+const FilterPanel: React.FC<Props> = ({ value, onChange, cardLightness = 0.04 }) => {
   const theme = useTheme();
   const sectionAlpha = Math.max(0, Math.min(0.16, cardLightness));
   const borderAlpha = Math.min(sectionAlpha + 0.02, 0.18);
@@ -66,7 +61,7 @@ const FilterPanel: React.FC<Props> = ({ open, onClose, onApply, cardLightness = 
   const [minigames, setMinigames] = React.useState<MinigameOption[]>([]);
   const [types, setTypes] = React.useState<TypeOption[]>([]);
 
-  const handleApply = () => {
+  const buildPayload = (): FilterPayload => {
     const payload: FilterPayload = {};
     if (fromDate || toDate || dateDirection) {
       payload.dateInvented = {
@@ -80,37 +75,28 @@ const FilterPanel: React.FC<Props> = ({ open, onClose, onApply, cardLightness = 
     }
     if (minigames.length > 0) payload.minigames = minigames;
     if (types.length > 0) payload.types = types;
-
-    console.log('Filter payload:', payload);
-    onApply(payload);
+    if (value?.search) payload.search = value.search;
+    return payload;
   };
 
+  React.useEffect(() => {
+    onChange(buildPayload());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromDate, toDate, dateDirection, tiers, tierDirection, minigames, types]);
+
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      fullWidth
-      maxWidth="lg"
-      BackdropProps={{ sx: { backgroundColor: alpha(theme.palette.dark.main, 0.6), backdropFilter: 'blur(2px)' } }}
-      PaperProps={{ sx: { borderRadius: 2, bgcolor: theme.palette.dark.main, border: `1px solid ${outerBorder}` } }}
-    >
-      <DialogTitle sx={{ pr: 6, bgcolor: theme.palette.dark.main }}> {/* Divider Bg*/}
-        <Typography component="span" variant="h5" sx={{ fontWeight: 700 }}>Filters</Typography>
-        <IconButton onClick={onClose} aria-label="close" sx={{ position: 'absolute', right: 12, top: 12 }}>
-          <Close />
-        </IconButton>
-      </DialogTitle>
+    <Paper elevation={0} sx={{ border: `1px solid ${outerBorder}`, borderRadius: 2, bgcolor: theme.palette.dark.main }}>
+      <Box sx={{ pr: 2, pl: 2, pt: 1.5, pb: 1.5, borderBottom: `1px solid ${frameDivider}` }}>
+        <Typography component="span" variant="h6" sx={{ fontWeight: 700 }}>Filters</Typography>
+      </Box>
 
       <LocalizationProvider dateAdapter={AdapterDateFns}>
-        <DialogContent
-          dividers
+        <Box
           sx={{
-            p: 2,
-            bgcolor: theme.palette.dark.main, // Divider Bg 
-            '&.MuiDialogContent-dividers': {
-              borderTopColor: frameDivider,
-              borderBottomColor: frameDivider,
-            },
+            pt: 2,
+            px: 2,
+            pb: 2,
+            bgcolor: theme.palette.dark.main,
             '& .MuiButton-root, & .MuiToggleButton-root': {
               textTransform: 'none'
             }
@@ -260,45 +246,9 @@ const FilterPanel: React.FC<Props> = ({ open, onClose, onApply, cardLightness = 
               </Stack>
             </Paper>
           </Stack>
-        </DialogContent>
+        </Box>
       </LocalizationProvider>
-
-      <DialogActions sx={{ px: 2, py: 1.5, bgcolor: theme.palette.dark.main }}> {/* Divider Bg*/}
-        <Box sx={{ flex: 1 }} />
-        <Button
-          variant="outlined"
-          color="brand"
-          onClick={handleApply}
-          sx={{
-            textTransform: 'none',
-            minWidth: 96,
-            px: 1.5,
-            height: 36,
-            borderRadius: 9,
-            color: 'dark.main',
-            position: 'relative',
-            overflow: 'hidden',
-            border: `1px solid ${alpha(theme.palette.brand.main, 0.45)}`,
-            bgcolor: theme.palette.brand.main,
-            boxShadow: 'none',
-            transition: 'transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease',
-            '&:hover': {
-              transform: 'translateY(-1px)',
-              borderColor: alpha(theme.palette.brand.main, 0.6)
-            },
-            '&:active': {
-              transform: 'translateY(0)',
-            },
-            '&:focus-visible': {
-              outline: `2px solid ${alpha(theme.palette.brand.main, 0.6)}`,
-              outlineOffset: '2px'
-            }
-          }}
-        >
-          Search
-        </Button>
-      </DialogActions>
-    </Dialog>
+    </Paper>
   );
 };
 
