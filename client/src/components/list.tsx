@@ -19,8 +19,10 @@ type Trap = {
   id: string;
   name: string;
   creators: string[];
-  thumbnailPath?: string;
+  dateInvented: string;
+  type: string,
   thumbnailUrl?: string;
+  minigame: string,
   rating?: { average: number; count: number };
   tierlistRating?: { average: number; count: number };
 };
@@ -197,25 +199,29 @@ const TrapRow: React.FC<{ trap: Trap }> = ({ trap }) => {
 
 const TrapList: React.FC = () => {
   const theme = useTheme();
-  const { traps, loading, error } = useFetchTraps();
+  const { traps: fetchedTraps, loading, error } = useFetchTraps();
+
+  const [allTraps, setAllTraps] = React.useState<Trap[]>([]);
+  const [filteredTraps, setFilteredTraps] = React.useState<Trap[]>([]);
   const [filterOpen, setFilterOpen] = React.useState<boolean>(false);
   const [currentFilter, setCurrentFilter] = React.useState<FilterPayload | null>(null);
   const [searchText, setSearchText] = React.useState<string>('');
 
+  React.useEffect(() => {
+    setAllTraps(fetchedTraps);
+    setFilteredTraps(fetchedTraps);
+  }, [fetchedTraps]);
+
   const handleOpenFilter = () => {
-    // Toggle visibility; if closing, clear filter state
     setFilterOpen((v) => {
       const next = !v;
       if (!next) setCurrentFilter(null);
       return next;
     });
   };
-  const handleCloseFilter = () => setFilterOpen(false);
+
   const handleApplyFilter = (payload: FilterPayload) => {
     setCurrentFilter(payload);
-  };
-  const handleClearFilter = () => {
-    setCurrentFilter(null);
   };
 
   const handleSearch = (text: string) => {
@@ -225,6 +231,87 @@ const TrapList: React.FC = () => {
       search: text || undefined,
     };
     console.log('Search payload:', payload);
+
+    applyQuery(payload);
+  };
+
+  // Function to filter traps based on payload
+  const applyQuery = (payload: FilterPayload) => {
+    let result = [...allTraps];
+
+    // Search filter
+    if (payload.search) {
+      const q = payload.search.toLowerCase();
+      result = result.filter(
+        (t) =>
+          t.name.toLowerCase().includes(q) ||
+          t.creators.some((c) => c.toLowerCase().includes(q)) ||
+          t.type.toLowerCase().includes(q) ||
+          t.minigame.toLowerCase().includes(q)
+      );
+    }
+
+    // Minigame filter
+    if (payload.minigames && payload.minigames.length > 0) {
+      result = result.filter((t) => payload.minigames!.includes(t.minigame as any));
+    }
+
+    // Type filter
+    if (payload.types && payload.types.length > 0) {
+      result = result.filter((t) => payload.types!.includes(t.type as any));
+    }
+
+    // Date invented filter
+    if (payload.dateInvented) {
+      const { from, to } = payload.dateInvented;
+      result = result.filter((t) => {
+        const trapDate = new Date(t.dateInvented);
+        const fromDate = from ? new Date(from) : null;
+        const toDate = to ? new Date(to) : null;
+        if (fromDate && trapDate < fromDate) return false;
+        if (toDate && trapDate > toDate) return false;
+        return true;
+      });
+
+      // Sorting by date
+      if (payload.dateInvented.direction) {
+        result.sort((a, b) => {
+          const da = new Date(a.dateInvented).getTime();
+          const db = new Date(b.dateInvented).getTime();
+          return payload.dateInvented!.direction === 'asc' ? da - db : db - da;
+        });
+      }
+    }
+
+    // Tierlist rating filter
+    if (payload.tierlistRating) {
+      const { ratings, direction } = payload.tierlistRating;
+
+      if (ratings && ratings.length > 0) {
+        result = result.filter((t) => {
+          const avg = t.tierlistRating?.average ?? 0;
+          const rounded = Math.max(0, Math.min(6, Math.round(avg)));
+          const letter =
+            rounded === 6 ? 'S' :
+            rounded === 5 ? 'A' :
+            rounded === 4 ? 'B' :
+            rounded === 3 ? 'C' :
+            rounded === 2 ? 'D' :
+            rounded === 1 ? 'E' : 'F';
+          return ratings.includes(letter as any);
+        });
+      }
+
+      if (direction) {
+        result.sort((a, b) => {
+          const ra = a.tierlistRating?.average ?? 0;
+          const rb = b.tierlistRating?.average ?? 0;
+          return direction === 'asc' ? ra - rb : rb - ra;
+        });
+      }
+    }
+
+    setFilteredTraps(result);
   };
 
   return (
@@ -259,14 +346,18 @@ const TrapList: React.FC = () => {
           </Typography>
         )}
 
-        {!loading && !error && traps.map((trap) => (
+        {!loading && !error && filteredTraps.map((trap) => (
           <TrapRow key={trap.id} trap={trap} />
         ))}
+
+        {!loading && !error && filteredTraps.length === 0 && (
+          <Typography variant="body2" sx={{ opacity: 0.7 }}>
+            No traps match your query.
+          </Typography>
+        )}
       </Stack>
     </Box>
   );
 };
 
 export default TrapList;
-
-
