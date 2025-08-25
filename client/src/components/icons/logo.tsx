@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, MotionProps, useAnimationControls } from 'framer-motion';
-import { useTheme } from '@mui/material/styles';
+import { useTheme, Theme } from '@mui/material/styles';
 
 export type LogoProps = MotionProps & React.HTMLAttributes<HTMLDivElement> & {
   armHeadSrc?: string;
@@ -14,6 +14,8 @@ export type LogoProps = MotionProps & React.HTMLAttributes<HTMLDivElement> & {
   retractDuration?: number;
   // When this number changes, the retract animation will be triggered
   triggerKey?: number;
+  // Optional theme override. If provided, overrides the MUI context theme
+  theme?: Theme;
 };
 
 export type LogoHandle = {
@@ -31,6 +33,7 @@ const Logo = React.forwardRef<LogoHandle, LogoProps>(({
   retractOffset = 77,
   retractDuration = 0.5,
   triggerKey,
+  theme: providedTheme,
   ...motionProps
 }, ref) => {
   const baseUrl = process.env.PUBLIC_URL ?? '';
@@ -43,9 +46,10 @@ const Logo = React.forwardRef<LogoHandle, LogoProps>(({
   const [currentGap, setCurrentGap] = React.useState<string>(defaultGap);
   const controls = useAnimationControls();
   const isAnimatingRef = React.useRef<boolean>(false);
-  const theme = useTheme();
-  const armBaseColor = theme.palette.light.main;
-  const gapColor = theme.palette.dark.main;
+  const themeFromContext = useTheme();
+  const effectiveTheme = providedTheme ?? themeFromContext;
+  const armBaseColor = effectiveTheme.palette.light.main;
+  const gapColor = effectiveTheme.palette.dark.main;
 
   const {
     animate: containerAnimate,
