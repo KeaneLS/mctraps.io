@@ -66,7 +66,7 @@ export async function writeTrap(
   name: string,
   creators: string[],
   dateInvented: string,
-  type: "main" | "backup",
+  type: string,
   videoUrl: string,
   thumbnailUrl: string,
   minigame: string,

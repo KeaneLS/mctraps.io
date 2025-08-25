@@ -186,7 +186,7 @@ const TrapRow: React.FC<{ trap: Trap }> = ({ trap }) => {
           <Box mt={0.9} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Tier size={28}/>
             <Typography variant="body2" sx={{ opacity: 0.5, fontWeight: 500 }} noWrap>
-                {cnt ?? 0} rankings
+                {cnt ?? 0} ratings
             </Typography>
           </Box>
         </Box>
