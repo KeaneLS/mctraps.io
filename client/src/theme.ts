@@ -13,7 +13,6 @@ declare module '@mui/material/styles' {
   }
 }
 
-// Allow using custom palette keys on component `color` props
 declare module '@mui/material/Button' {
   interface ButtonPropsColorOverrides {
     brand: true;

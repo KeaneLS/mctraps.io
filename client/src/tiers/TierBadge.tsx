@@ -3,9 +3,7 @@ import { Box, Typography } from '@mui/material';
 
 export interface TierBadgeProps {
   label: 'S' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
-  /** Hex color without the leading #, e.g., FF7F7F */
   hexBg: string;
-  /** Size in pixels. Default 28. */
   size?: number;
 }
 

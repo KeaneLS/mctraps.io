@@ -10,9 +10,10 @@ import {
   Divider
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
-import { Search, ExpandMore } from '@mui/icons-material';
+import { Search, Close } from '@mui/icons-material';
 import { S as TierS, A as TierA, B as TierB, C as TierC, D as TierD, E as TierE, F as TierF } from '../tiers';
 import { readTraps } from '../firebase/dataAccess';
+import FilterPanel, { FilterPayload } from './FilterPanel';
 
 type Trap = {
   id: string;
@@ -51,7 +52,11 @@ const useFetchTraps = () => {
   return { traps, loading, error };
 };
 
-const SearchBar: React.FC = () => {
+const SearchBar: React.FC<{
+	onOpenFilter: () => void;
+	filterApplied: boolean;
+	onClearFilter: () => void;
+}> = ({ onOpenFilter, filterApplied, onClearFilter }) => {
   const theme = useTheme();
   const surfaceBg = alpha(theme.palette.light.main, 0.06);
   const surfaceBorder = alpha(theme.palette.light.main, 0.12);
@@ -70,21 +75,43 @@ const SearchBar: React.FC = () => {
         border: `1px solid ${surfaceBorder}`,
       }}
     >
-      <Button
-        variant="text"
-        color="inherit"
-        endIcon={<ExpandMore />}
-        sx={{
-          textTransform: 'none',
-          px: 1.25,
-          minWidth: 0,
-          color: 'text.primary',
-          borderRadius: 2,
-          '&:hover': { bgcolor: alpha(theme.palette.light.main, 0.06) }
-        }}
-      >
-        All
-      </Button>
+      {!filterApplied ? (
+        <Button
+          variant="text"
+          color="inherit"
+          onClick={onOpenFilter}
+          sx={{
+            textTransform: 'none',
+            px: 1.25,
+            minWidth: 0,
+            color: 'text.primary',
+            borderRadius: 2,
+            '&:hover': { bgcolor: alpha(theme.palette.light.main, 0.06) }
+          }}
+        >
+          Filter
+        </Button>
+      ) : (
+        <Box sx={{
+          display: 'grid',
+          gridAutoFlow: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 0.5,
+          px: 1,
+          py: 0.25,
+          height: 36,
+          width: 130,
+          borderRadius: 1.5,
+          bgcolor: 'brand.main',
+          color: 'brand.contrastText',
+        }}>
+          <Typography variant="body2" sx={{ fontWeight: 700 }}>Current Filter</Typography>
+          <IconButton size="small" aria-label="clear filter" onClick={onClearFilter} sx={{ color: 'brand.contrastText', p: 0, m: 0 }}>
+            <Close fontSize="small" />
+          </IconButton>
+        </Box>
+      )}
       <Divider orientation="vertical" flexItem sx={{ borderColor: surfaceBorder }} />
       <InputBase
         placeholder="Search..."
@@ -171,6 +198,18 @@ const TrapRow: React.FC<{ trap: Trap }> = ({ trap }) => {
 const TrapList: React.FC = () => {
   const theme = useTheme();
   const { traps, loading, error } = useFetchTraps();
+  const [filterOpen, setFilterOpen] = React.useState<boolean>(false);
+  const [currentFilter, setCurrentFilter] = React.useState<FilterPayload | null>(null);
+
+  const handleOpenFilter = () => setFilterOpen(true);
+  const handleCloseFilter = () => setFilterOpen(false);
+  const handleApplyFilter = (payload: FilterPayload) => {
+    setCurrentFilter(payload);
+    setFilterOpen(false);
+  };
+  const handleClearFilter = () => {
+    setCurrentFilter(null);
+  };
 
   return (
     <Box sx={{
@@ -181,7 +220,12 @@ const TrapList: React.FC = () => {
     }}>
       <Stack spacing={2}>
         <Box sx={{ mt: 2 }}>
-          <SearchBar />
+          <SearchBar
+            onOpenFilter={handleOpenFilter}
+            filterApplied={!!currentFilter}
+            onClearFilter={handleClearFilter}
+          />
+          <FilterPanel open={filterOpen} onClose={handleCloseFilter} onApply={handleApplyFilter} />
         </Box>
 
         {loading && (

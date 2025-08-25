@@ -59,7 +59,7 @@ const Navbar: React.FC<NavbarProps> = ({ mode = 'light', onToggleTheme }) => {
       <Paper
         elevation={0}
         sx={{
-          borderRadius: 2,
+          borderRadius: 9,
           px: 2,
           py: 1,
           bgcolor: surfaceBg,
@@ -74,7 +74,7 @@ const Navbar: React.FC<NavbarProps> = ({ mode = 'light', onToggleTheme }) => {
 
           <Stack direction="row" alignItems="center" spacing={1}
             sx={{
-              '& .MuiButton-root': { textTransform: 'none', borderRadius: 4 }
+              '& .MuiButton-root': { textTransform: 'none', borderRadius: 9 }
             }}
           >
             <Button
