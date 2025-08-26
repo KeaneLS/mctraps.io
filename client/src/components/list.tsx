@@ -146,6 +146,10 @@ const TrapRow: React.FC<{ trap: Trap }> = ({ trap }) => {
     TierF
   );
   const thumbnailSrc = trap.thumbnailUrl || '';
+  const invented = (() => {
+    const d = new Date(trap.dateInvented);
+    return isNaN(d.getTime()) ? trap.dateInvented : d.toLocaleDateString();
+  })();
 
   return (
     <Paper
@@ -165,6 +169,12 @@ const TrapRow: React.FC<{ trap: Trap }> = ({ trap }) => {
         },
       }}
     >
+      <Typography
+        variant="caption"
+        sx={{ position: 'absolute', top: 8, right: 12, opacity: 0.7, fontWeight: 600 }}
+      >
+        {invented}
+      </Typography>
       <Stack direction="row" spacing={2} alignItems="center">
         <Box
           component="img"
