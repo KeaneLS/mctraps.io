@@ -14,15 +14,17 @@ import {
 } from '@mui/material';
 import { Google, Visibility, VisibilityOff } from '@mui/icons-material';
 import { darkTheme, lightTheme, AppThemeMode } from '../theme';
-import { alpha, Theme } from '@mui/material/styles';
+import { alpha, Theme, useTheme } from '@mui/material/styles';
 import Logo from '../components/icons/logo';
 import Navbar from '../components/Navbar';
 
 export interface LoginProps {
   isSignup?: boolean;
+  embedded?: boolean;
 }
 
-const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp }) => {
+const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded }) => {
+  const themeForEmbedded = useTheme();
   const [mode, setMode] = React.useState<AppThemeMode>(() => {
     if (typeof window !== 'undefined' && window.matchMedia) {
       return window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -52,6 +54,135 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp }) => {
       setIsSignup(isSignupProp);
     }
   }, [isSignupProp]);
+
+  if (embedded) {
+    return (
+        <Box sx={{ pt: 0, pb: { xs: 3, sm: 4 }, px: { xs: 3, sm: 4 }, width: '100%', maxWidth: 520 }}>
+          <Box sx={{ width: '100%', maxWidth: 440, mx: 'auto' }}>
+
+            <Stack spacing={2.5}>
+              {isSignup && (
+                <TextField
+                  label="Username"
+                  type="text"
+                  fullWidth
+                  InputLabelProps={{
+                    sx: { color: 'light.main', '&.Mui-focused': { color: 'light.main' } },
+                  }}
+                  sx={outlinedLightSx(themeForEmbedded)}
+                />
+              )}
+              <TextField
+                label="Email address"
+                type="email"
+                fullWidth
+                InputLabelProps={{
+                  sx: { color: 'light.main', '&.Mui-focused': { color: 'light.main' } },
+                }}
+                sx={outlinedLightSx(themeForEmbedded)}
+              />
+
+              {!isSignup && (
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+                  <Typography component={Link} href="#" className="link" underline="none" color="light.main" variant="body2">
+                    Forgot password?
+                  </Typography>
+                </Box>
+              )}
+              <TextField
+                label="Password"
+                type={showPassword ? 'text' : 'password'}
+                fullWidth
+                InputLabelProps={{
+                  sx: { color: 'light.main', '&.Mui-focused': { color: 'light.main' } },
+                }}
+                FormHelperTextProps={isSignup ? undefined : { sx: { color: 'light.main' } }}
+                sx={outlinedLightSx(themeForEmbedded)}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        aria-label="toggle password visibility"
+                        onClick={() => setShowPassword((prev) => !prev)}
+                        edge="end"
+                        color="light"
+                      >
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+
+              <Button
+                variant="outlined"
+                color="brand"
+                size="large"
+                fullWidth
+                sx={{
+                  height: 52,
+                  px: 2,
+                  color: 'dark.main',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  border: `1px solid ${alpha(themeForEmbedded.palette.brand.main, 0.45)}`,
+                  bgcolor: themeForEmbedded.palette.brand.main,
+                  boxShadow: 'none',
+                  textTransform: 'none',
+                  transition: 'transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease',
+                  '&:hover': {
+                    transform: 'translateY(-1px)',
+                    borderColor: alpha(themeForEmbedded.palette.brand.main, 0.6),
+                  },
+                  '&:active': {
+                    transform: 'translateY(0)',
+                  },
+                  '&:focus-visible': {
+                    outline: `2px solid ${alpha(themeForEmbedded.palette.brand.main, 0.6)}`,
+                    outlineOffset: '2px',
+                  },
+                }}
+              >
+                {isSignup ? 'Create account' : 'Sign in'}
+              </Button>
+
+              <Divider>OR</Divider>
+
+              <Button
+                variant="outlined"
+                size="large"
+                fullWidth
+                startIcon={<Google />}
+                color="inherit"
+                sx={{
+                  height: 52,
+                  px: 2,
+                  borderColor: alpha(themeForEmbedded.palette.light.main, 0.12),
+                  bgcolor: alpha(themeForEmbedded.palette.light.main, 0.04),
+                  textTransform: 'none',
+                  transition: 'transform 0.2s ease',
+                  '&:hover': {
+                    bgcolor: alpha(themeForEmbedded.palette.light.main, 0.1),
+                    borderColor: alpha(themeForEmbedded.palette.light.main, 0.2),
+                    transform: 'translateY(-1px)',
+                  },
+                }}
+              >
+                {isSignup ? 'Sign up with Google' : 'Sign in with Google'}
+              </Button>
+
+              {isSignup && (
+                <Typography variant="body2" sx={{ mt: 2, textAlign: 'center', color: alpha(themeForEmbedded.palette.light.main, 0.7) }}>
+                  By signing up, I agree to the{' '}
+                  <Typography component={Link} href="#" className="link" underline="none" color="light.main" variant="body2">Terms of Service</Typography> and{' '}
+                  <Typography component={Link} href="#" className="link" underline="none" color="light.main" variant="body2">Privacy Policy</Typography>
+                </Typography>
+              )}
+            </Stack>
+          </Box>
+        </Box>
+    );
+  }
 
   return (
     <ThemeProvider theme={currentTheme}>

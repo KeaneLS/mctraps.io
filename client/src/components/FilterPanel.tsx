@@ -7,7 +7,8 @@ import {
   ToggleButtonGroup,
   ToggleButton,
   Paper,
-  IconButton
+  IconButton,
+  Button
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import { ArrowUpward, ArrowDownward } from '@mui/icons-material';
@@ -87,7 +88,39 @@ const FilterPanel: React.FC<Props> = ({ value, onChange, cardLightness = 0.04 })
   return (
     <Paper elevation={0} sx={{ border: `1px solid ${outerBorder}`, borderRadius: 2, bgcolor: theme.palette.dark.main }}>
       <Box sx={{ pr: 2, pl: 2, pt: 1.5, pb: 1.5, borderBottom: `1px solid ${frameDivider}` }}>
-        <Typography component="span" variant="h6" sx={{ fontWeight: 700 }}>Filters</Typography>
+        <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            <Typography component="span" variant="h6" sx={{ fontWeight: 700 }}>Filters</Typography>
+            <Typography component="span" variant="body2" sx={{ fontWeight: 400 }}>Click the search button to apply filters</Typography>
+          </Box>
+          <Button
+            size="small"
+            variant="outlined"
+            color="inherit"
+            onClick={() => {
+              setFromDate(null);
+              setToDate(null);
+              setDateDirection('desc');
+              setTiers([]);
+              setTierDirection('desc');
+              setMinigames([]);
+              setTypes([]);
+            }}
+            sx={{
+              textTransform: 'none',
+              minWidth: 0,
+              px: 1,
+              py: 0.25,
+              height: 28,
+              lineHeight: 1,
+              borderRadius: 2,
+              color: 'light.main',
+              '&:hover': { bgcolor: alpha(theme.palette.light.main, 0.08) }
+            }}
+          >
+            Reset
+          </Button>
+        </Stack>
       </Box>
 
       <LocalizationProvider dateAdapter={AdapterDateFns}>
