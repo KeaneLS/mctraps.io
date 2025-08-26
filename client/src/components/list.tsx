@@ -231,7 +231,6 @@ const TrapList: React.FC = () => {
       search: text || undefined,
     };
     console.log('Search payload:', payload);
-
     applyQuery(payload);
   };
 

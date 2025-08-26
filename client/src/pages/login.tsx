@@ -17,6 +17,7 @@ import { darkTheme, lightTheme, AppThemeMode } from '../theme';
 import { alpha, Theme } from '@mui/material/styles';
 import Logo from '../components/icons/logo';
 import Navbar from '../components/Navbar';
+import { signupWithEmail, loginWithEmail, loginWithGoogle } from "../firebase/authentication";
 
 export interface LoginProps {
   isSignup?: boolean;
@@ -31,11 +32,13 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp }) => {
     }
     return 'light';
   });
+
   const currentTheme = mode === 'light' ? lightTheme : darkTheme;
   const oppositeTheme = mode === 'light' ? darkTheme : lightTheme;
   const toggleMode = React.useCallback(() => {
     setMode((prev) => (prev === 'light' ? 'dark' : 'light'));
   }, []);
+
   const outlinedLightSx = (theme: Theme) => ({
     '& .MuiOutlinedInput-root': {
       '& fieldset': { borderColor: alpha(theme.palette.light.main, 0.35) },
@@ -43,15 +46,46 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp }) => {
       '&.Mui-focused fieldset': { borderColor: theme.palette.light.main },
     },
   });
-
+  
+  // State
   const [showPassword, setShowPassword] = React.useState(false);
   const [isSignup, setIsSignup] = React.useState<boolean>(!!isSignupProp);
   const canToggleMode = typeof isSignupProp === 'undefined';
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [username, setUsername] = React.useState("");
+  const [error, setError] = React.useState<string | null>(null);
+
   React.useEffect(() => {
     if (typeof isSignupProp === 'boolean') {
       setIsSignup(isSignupProp);
     }
   }, [isSignupProp]);
+
+  // Handle form submit
+  const handleSubmit = async () => {
+    try {
+      if (isSignup) {
+        await signupWithEmail(email, password, username);
+      } else {
+        await loginWithEmail(email, password);
+      }
+    } catch (err: any) {
+      setError(err.message);
+      console.log("Error signing in:", err.message)
+      console.log("login info:", email, password, username)
+    }
+  };
+
+  // Handle Google login
+  const handleGoogleAuth = async () => {
+    try {
+      await loginWithGoogle();
+    } catch (err: any) {
+      setError(err.message);
+      console.log("Error signing in:", err.messager)
+    }
+  };
 
   return (
     <ThemeProvider theme={currentTheme}>
@@ -126,6 +160,8 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp }) => {
                   label="Username"
                   type="text"
                   fullWidth
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   InputLabelProps={{
                     sx: { color: 'light.main', '&.Mui-focused': { color: 'light.main' } },
                   }}
@@ -136,6 +172,8 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp }) => {
                 label="Email address"
                 type="email"
                 fullWidth
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 InputLabelProps={{
                   sx: { color: 'light.main', '&.Mui-focused': { color: 'light.main' } },
                 }}
@@ -153,6 +191,8 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp }) => {
                 label="Password"
                 type={showPassword ? 'text' : 'password'}
                 fullWidth
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 InputLabelProps={{
                   sx: { color: 'light.main', '&.Mui-focused': { color: 'light.main' } },
                 }}
@@ -173,6 +213,12 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp }) => {
                   ),
                 }}
               />
+
+              {error && (
+                <Typography variant="body2" color="error" sx={{ mt: 1 }}>
+                  {error}
+                </Typography>
+              )}
 
               <Button
                 variant="outlined"
@@ -202,6 +248,7 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp }) => {
                     outlineOffset: '2px',
                   },
                 }}
+                onClick={handleSubmit}
               >
                 {isSignup ? 'Create account' : 'Sign in'}
               </Button>
@@ -227,6 +274,7 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp }) => {
                     transform: 'translateY(-1px)',
                   },
                 }}
+                onClick={handleGoogleAuth}
               >
                 {isSignup ? 'Sign up with Google' : 'Sign in with Google'}
               </Button>

@@ -9,6 +9,7 @@ const root = ReactDOM.createRoot(
 
 root.render(
   <React.StrictMode>
-    <Landing />
+    {/* <Landing /> */}
+    <Login isSignup={true}></Login>
   </React.StrictMode>
 );
