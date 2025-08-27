@@ -52,11 +52,13 @@ const Navbar: React.FC<NavbarProps> = ({ mode = 'light', onToggleTheme }) => {
       sx={{
         position: 'fixed',
         top: 16,
-        left: '50%',
-        transform: 'translateX(-50%)',
+        left: 0,
+        right: 0,
         zIndex: theme.zIndex.appBar,
-        display: 'inline-block',
-        whiteSpace: 'nowrap'
+        display: 'flex',
+        justifyContent: 'center',
+        whiteSpace: 'nowrap',
+        pointerEvents: 'none'
       }}
     >
       <Paper
@@ -72,6 +74,7 @@ const Navbar: React.FC<NavbarProps> = ({ mode = 'light', onToggleTheme }) => {
           position: 'relative',
           overflow: 'visible',
           boxShadow: 'none',
+          pointerEvents: 'auto'
         }}
       >
         <Stack direction="row" alignItems="center" spacing={1.5} justifyContent="space-between">

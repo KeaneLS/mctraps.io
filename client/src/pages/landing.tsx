@@ -4,6 +4,7 @@ import { darkTheme, lightTheme, AppThemeMode } from '../theme';
 import Navbar from '../components/Navbar';
 import TrapList from '../components/list';
 import Popup from '../components/popup';
+import { useAuth } from '../firebase/authContext';
 
 const Landing: React.FC = () => {
   const [mode, setMode] = React.useState<AppThemeMode>(() => {
@@ -29,11 +30,16 @@ const Landing: React.FC = () => {
     } catch {}
   }, [mode]);
 
+  const { currentUser } = useAuth();
   const [showSignup, setShowSignup] = React.useState<boolean>(false);
   React.useEffect(() => {
+    if (currentUser) {
+      setShowSignup(false);
+      return;
+    }
     const timer = window.setTimeout(() => setShowSignup(true), 5000);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [currentUser]);
 
   return (
     <ThemeProvider theme={currentTheme}>
@@ -41,7 +47,7 @@ const Landing: React.FC = () => {
       <Navbar mode={mode} onToggleTheme={toggleMode} />
       <Box sx={{ height: 96 }} />
       <TrapList />
-      <Popup open={showSignup} onClose={() => setShowSignup(false)} />
+      <Popup open={showSignup && !currentUser} onClose={() => setShowSignup(false)} />
     </ThemeProvider>
   );
 };

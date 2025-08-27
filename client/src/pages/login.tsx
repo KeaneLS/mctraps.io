@@ -72,6 +72,7 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
   const [error, setError] = React.useState<string | null>(null);
   const [info, setInfo] = React.useState<string | null>(null);
   const [resetSent, setResetSent] = React.useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
   const navigate = useNavigate();
   const { signup, login, loginWithGoogle, resetPassword } = useAuth();
 
@@ -84,11 +85,46 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
   React.useEffect(() => {
     setError(null);
     setInfo(null);
+    setIsSubmitting(false);
   }, [isSignup, isReset]);
 
   const targetPath = isSignup ? '/login' : '/signup';
 
   const isResetMode = !!isReset;
+
+  // Place formatter before any early returns so it is initialized in embedded variant too
+  function formatAuthError(err: any): string {
+    const rawCode = (err?.code as string | undefined) || '';
+    const code = rawCode.toLowerCase();
+
+    const friendlyByCode: Record<string, string> = {
+      'auth/invalid-email': 'Please enter a valid email address.',
+      'auth/user-not-found': 'No account exists for that email.',
+      'auth/wrong-password': 'Incorrect password. Please try again.',
+      'auth/missing-password': 'Please enter your password.',
+      'auth/missing-email': 'Please enter your email address.',
+      'auth/too-many-requests': 'Too many attempts. Please wait and try again.',
+      'auth/email-already-in-use': 'An account with this email already exists.',
+      'auth/weak-password': 'Password must be at least 6 characters.',
+      'auth/invalid-credential': 'Email or password is incorrect.',
+      'auth/invalid-login-credentials': 'Email or password is incorrect.',
+      'auth/network-request-failed': 'Network error. Please check your connection and try again.',
+      'auth/internal-error': 'An unexpected error occurred. Please try again.',
+      'auth/operation-not-allowed': 'This sign-in method is not enabled.',
+      'auth/popup-blocked': 'Your browser blocked the sign-in pop-up. Please allow pop-ups and try again.',
+      'auth/popup-closed-by-user': 'Log in was cancelled. Please try again.',
+      'auth/cancelled-popup-request': 'Log in was cancelled. Please try again.',
+    };
+
+    if (friendlyByCode[code]) return friendlyByCode[code];
+
+    const raw = (err?.message as string | undefined) || 'Something went wrong. Please try again.';
+    const withoutFirebase = raw.replace(/^Firebase:\s*(Error\s*)?/i, '').trim();
+    const withoutCode = withoutFirebase.replace(/\s*\(auth\/[\w-]+\)\.?$/i, '').trim();
+
+    const cleaned = withoutCode || friendlyByCode[code] || 'Something went wrong. Please try again.';
+    return /[\.!?]$/.test(cleaned) ? cleaned : cleaned + '.';
+  }
 
   if (embedded) {
     return (
@@ -201,7 +237,7 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
                   },
                 }}
                 onClick={isResetMode ? handleForgotPassword : handleSubmit}
-                disabled={isResetMode && resetSent}
+                disabled={isResetMode ? (resetSent || isSubmitting) : isSubmitting}
               >
                 {isResetMode ? 'Reset Password' : (isSignup ? 'Create account' : 'Log in')}
               </Button>
@@ -248,7 +284,9 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
 
   // Handle form submit
   async function handleSubmit() {
+    if (isSubmitting) return;
     try {
+      setIsSubmitting(true);
       setError(null);
       setInfo(null);
       if (isSignup) {
@@ -261,11 +299,14 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
       setError(formatAuthError(err));
       console.log("Error signing in:", err.message);
       console.log("login info:", email, password);
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
   // Handle Google login
   async function handleGoogleAuth() {
+    if (isSubmitting) return;
     try {
       setError(null);
       setInfo(null);
@@ -278,7 +319,9 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
   }
 
   async function handleForgotPassword() {
+    if (isSubmitting || resetSent) return;
     try {
+      setIsSubmitting(true);
       setError(null);
       setInfo(null);
       if (!email) {
@@ -302,42 +345,10 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
       setResetSent(true);
     } catch (err: any) {
       setError(formatAuthError(err));
+    } finally {
+      setIsSubmitting(false);
     }
   }
-
-  const formatAuthError = (err: any): string => {
-    const rawCode = (err?.code as string | undefined) || '';
-    const code = rawCode.toLowerCase();
-
-    const friendlyByCode: Record<string, string> = {
-      'auth/invalid-email': 'Please enter a valid email address.',
-      'auth/user-not-found': 'No account exists for that email.',
-      'auth/wrong-password': 'Incorrect password. Please try again.',
-      'auth/missing-password': 'Please enter your password.',
-      'auth/missing-email': 'Please enter your email address.',
-      'auth/too-many-requests': 'Too many attempts. Please wait and try again.',
-      'auth/email-already-in-use': 'An account with this email already exists.',
-      'auth/weak-password': 'Password must be at least 6 characters.',
-      'auth/invalid-credential': 'Email or password is incorrect.',
-      'auth/invalid-login-credentials': 'Email or password is incorrect.',
-      'auth/network-request-failed': 'Network error. Please check your connection and try again.',
-      'auth/internal-error': 'An unexpected error occurred. Please try again.',
-      'auth/operation-not-allowed': 'This sign-in method is not enabled.',
-      'auth/popup-blocked': 'Your browser blocked the sign-in pop-up. Please allow pop-ups and try again.',
-      'auth/popup-closed-by-user': 'Log in was cancelled. Please try again.',
-      'auth/cancelled-popup-request': 'Log in was cancelled. Please try again.',
-    };
-
-    if (friendlyByCode[code]) return friendlyByCode[code];
-
-    const raw = (err?.message as string | undefined) || 'Something went wrong. Please try again.';
-    // Remove leading "Firebase:" and optional "Error", and any trailing auth code like (auth/weak-password)
-    const withoutFirebase = raw.replace(/^Firebase:\s*(Error\s*)?/i, '').trim();
-    const withoutCode = withoutFirebase.replace(/\s*\(auth\/[\w-]+\)\.?$/i, '').trim();
-
-    const cleaned = withoutCode || friendlyByCode[code] || 'Something went wrong. Please try again.';
-    return /[\.!?]$/.test(cleaned) ? cleaned : cleaned + '.';
-  };
 
   return (
     <ThemeProvider theme={currentTheme}>
@@ -516,7 +527,7 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
                   },
                 }}
                 onClick={isResetMode ? handleForgotPassword : handleSubmit}
-                disabled={isResetMode && resetSent}
+                disabled={isResetMode ? (resetSent || isSubmitting) : isSubmitting}
               >
                 {isResetMode ? 'Reset Password' : (isSignup ? 'Create account' : 'Log in')}
               </Button>
