@@ -7,8 +7,14 @@ import Popup from '../components/popup';
 
 const Landing: React.FC = () => {
   const [mode, setMode] = React.useState<AppThemeMode>(() => {
-    if (typeof window !== 'undefined' && window.matchMedia) {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = window.localStorage.getItem('themeMode') as AppThemeMode | null;
+        if (stored === 'light' || stored === 'dark') return stored;
+      } catch {}
+      if (window.matchMedia) {
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
     }
     return 'light';
   });
@@ -16,6 +22,12 @@ const Landing: React.FC = () => {
   const toggleMode = React.useCallback(() => {
     setMode((prev) => (prev === 'light' ? 'dark' : 'light'));
   }, []);
+
+  React.useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') window.localStorage.setItem('themeMode', mode);
+    } catch {}
+  }, [mode]);
 
   const [showSignup, setShowSignup] = React.useState<boolean>(false);
   React.useEffect(() => {
