@@ -329,8 +329,17 @@ const TrapList: React.FC = () => {
       mx: 'auto',
       px: 2,
       pb: 6,
+      position: 'relative',
+      '&::before': {
+        content: '""',
+        position: 'absolute',
+        inset: 0,
+        borderRadius: 2,
+        backgroundColor: theme.palette.dark.main,
+        zIndex: 0,
+      }
     }}>
-      <Stack spacing={2}>
+      <Stack spacing={2} sx={{ position: 'relative', zIndex: 1 }}>
         <Box sx={{ mt: 2 }}>
           <SearchBar
             onToggleFilter={handleOpenFilter}
