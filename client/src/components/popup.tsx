@@ -4,6 +4,7 @@ import { useTheme, alpha } from '@mui/material/styles';
 import CloseIcon from '@mui/icons-material/Close';
 import Login from '../pages/login';
 import { darkTheme } from '../theme';
+import ShinyText from '../blocks/TextAnimations/ShinyText/ShinyText';
 
 export interface PopupProps {
   open: boolean;
@@ -13,6 +14,7 @@ export interface PopupProps {
 const Popup: React.FC<PopupProps> = ({ open, onClose }) => {
   const outerTheme = useTheme();
   const hasCustomPalette = !!(outerTheme as any)?.palette?.dark?.main;
+  const isDarkMode = outerTheme.palette.mode === 'dark';
 
   const groupRef = React.useRef<HTMLDivElement | null>(null);
   const [loopDistance, setLoopDistance] = React.useState<number>(0);
@@ -111,9 +113,12 @@ const Popup: React.FC<PopupProps> = ({ open, onClose }) => {
               color: alpha(theme.palette.light.main, 0.3),
             })}
           >
-            Trusted by your favorite trappers
+            {isDarkMode ? (
+              <ShinyText text="Trusted by your favorite trappers" />
+            ) : (
+              'Trusted by your favorite trappers'
+            )}
           </Typography>
-
           <Box
             sx={{
               width: '100%',

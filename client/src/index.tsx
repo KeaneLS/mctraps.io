@@ -1,8 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import Landing from './pages/landing';
-import Login from './pages/login';
-import Popup from './components/popup';
+import App from './App';
+import { AuthProvider } from './firebase/authContext';
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
@@ -10,7 +9,8 @@ const root = ReactDOM.createRoot(
 
 root.render(
   <React.StrictMode>
-    {/* <Landing /> */}
-    <Login isSignup={true}></Login>
+    <AuthProvider>
+      <App />
+    </AuthProvider>
   </React.StrictMode>
 );

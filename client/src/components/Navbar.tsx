@@ -1,8 +1,10 @@
 import React from 'react';
-import { Box, Button, Paper, Stack, Typography, IconButton, Tooltip } from '@mui/material';
-import { AccountCircle, DarkMode, LightMode } from '@mui/icons-material';
+import { Box, Button, Paper, Stack, Typography, IconButton, Avatar } from '@mui/material';
+import { AccountCircle, DarkMode, LightMode, Logout } from '@mui/icons-material';
 import { alpha, useTheme } from '@mui/material/styles';
 import Logo from './icons/logo';
+import { Link as RouterLink } from 'react-router-dom';
+import { useAuth } from '../firebase/authContext';
  
 
 const HoverLogoLabel: React.FC = () => {
@@ -12,8 +14,8 @@ const HoverLogoLabel: React.FC = () => {
   }, []);
   return (
     <Stack
-      component="a"
-      href="/"
+      component={RouterLink}
+      to="/home"
       direction="row"
       alignItems="center"
       spacing={0.6}
@@ -42,6 +44,7 @@ const Navbar: React.FC<NavbarProps> = ({ mode = 'light', onToggleTheme }) => {
   const surfaceBg = alpha(theme.palette.light.main, 0.06);
   const surfaceBorder = alpha(theme.palette.light.main, 0.12);
   const hoverBg = alpha(theme.palette.light.main, 0.1);
+  const { currentUser, logout } = useAuth();
 
   return (
     <Box
@@ -79,55 +82,105 @@ const Navbar: React.FC<NavbarProps> = ({ mode = 'light', onToggleTheme }) => {
               '& .MuiButton-root': { textTransform: 'none', borderRadius: 9 }
             }}
           >
-            <Button
-              variant="outlined"
+            {currentUser ? (
+              <Stack direction="row" spacing={1.25} alignItems="center">
+                <Avatar src={currentUser.photoURL ?? undefined} sx={{ width: 28, height: 28 }}>
+                  {currentUser.email?.[0]?.toUpperCase()}
+                </Avatar>
+                <Button
+                  variant="outlined"
+                  color="inherit"
+                  startIcon={<Logout />}
+                  onClick={logout}
+                  sx={{
+                    minWidth: 96,
+                    px: 1.5,
+                    height: 36,
+                    borderColor: surfaceBorder,
+                    bgcolor: alpha(theme.palette.light.main, 0.04),
+                    transition: 'transform 0.2s ease',
+                    '&:hover': { bgcolor: hoverBg, borderColor: alpha(theme.palette.light.main, 0.2), transform: 'translateY(-1px)' }
+                  }}
+                >
+                  Log out
+                </Button>
+              </Stack>
+            ) : (
+              <>
+                <Button
+                  component={RouterLink}
+                  to="/login"
+                  variant="outlined"
+                  color="inherit"
+                  startIcon={<AccountCircle />}
+                  sx={{
+                    minWidth: 96,
+                    px: 1.5,
+                    height: 36,
+                    borderColor: surfaceBorder,
+                    bgcolor: alpha(theme.palette.light.main, 0.04),
+                    transition: 'transform 0.2s ease',
+                    '&:hover': { bgcolor: hoverBg, borderColor: alpha(theme.palette.light.main, 0.2), transform: 'translateY(-1px)' }
+                  }}
+                >
+                  Log in
+                </Button>
+                <Button
+                  component={RouterLink}
+                  to="/signup"
+                  variant="outlined"
+                  color="brand"
+                  sx={{
+                    minWidth: 96,
+                    px: 1.5,
+                    height: 36,
+                    color: 'dark.main',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    border: `1px solid ${alpha(theme.palette.brand.main, 0.45)}`,
+                    bgcolor: theme.palette.brand.main,
+                    boxShadow: 'none',
+                    transition: 'transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease',
+                    '&:hover': {
+                      transform: 'translateY(-1px)',
+                      borderColor: alpha(theme.palette.brand.main, 0.6)
+                    },
+                    '&:active': {
+                      transform: 'translateY(0)',
+                    },
+                    '&:focus-visible': {
+                      outline: `2px solid ${alpha(theme.palette.brand.main, 0.6)}`,
+                      outlineOffset: '2px'
+                    }
+                  }}
+                >
+                  Sign up
+                </Button>
+              </>
+            )}
+            <IconButton
               color="inherit"
-              startIcon={<AccountCircle />}
+              onClick={onToggleTheme}
               sx={{
-                minWidth: 96,
-                px: 1.5,
+                width: 36,
                 height: 36,
-                borderColor: surfaceBorder,
+                borderRadius: 9,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                p: 0,
+                border: `1px solid ${surfaceBorder}`,
                 bgcolor: alpha(theme.palette.light.main, 0.04),
                 transition: 'transform 0.2s ease',
                 '&:hover': { bgcolor: hoverBg, borderColor: alpha(theme.palette.light.main, 0.2), transform: 'translateY(-1px)' }
               }}
+              aria-label="Toggle theme"
             >
-              Log in
-            </Button>
-            <Button
-              variant="outlined"
-              color="brand"
-              sx={{
-                minWidth: 96,
-                px: 1.5,
-                height: 36,
-                color: 'dark.main',
-                position: 'relative',
-                overflow: 'hidden',
-                border: `1px solid ${alpha(theme.palette.brand.main, 0.45)}`,
-                bgcolor: theme.palette.brand.main,
-                boxShadow: 'none',
-                transition: 'transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease',
-                '&:hover': {
-                  transform: 'translateY(-1px)',
-                  borderColor: alpha(theme.palette.brand.main, 0.6)
-                },
-                '&:active': {
-                  transform: 'translateY(0)',
-                },
-                '&:focus-visible': {
-                  outline: `2px solid ${alpha(theme.palette.brand.main, 0.6)}`,
-                  outlineOffset: '2px'
-                }
-              }}
-            >
-              Sign up
-            </Button>
-            <Tooltip title={mode === 'light' ? 'Switch to dark' : 'Switch to light'}>
+              {mode === 'light' ? <DarkMode fontSize="small" /> : <LightMode fontSize="small" />}
+            </IconButton>
+            {currentUser && (
               <IconButton
                 color="inherit"
-                onClick={onToggleTheme}
                 sx={{
                   width: 36,
                   height: 36,
@@ -138,13 +191,14 @@ const Navbar: React.FC<NavbarProps> = ({ mode = 'light', onToggleTheme }) => {
                   p: 0,
                   border: `1px solid ${surfaceBorder}`,
                   bgcolor: alpha(theme.palette.light.main, 0.04),
-                  '&:hover': { bgcolor: hoverBg, borderColor: alpha(theme.palette.light.main, 0.2) }
+                  transition: 'transform 0.2s ease',
+                  '&:hover': { bgcolor: hoverBg, borderColor: alpha(theme.palette.light.main, 0.2), transform: 'translateY(-1px)' }
                 }}
-                aria-label="Toggle theme"
+                aria-label="Account"
               >
-                {mode === 'light' ? <DarkMode fontSize="small" /> : <LightMode fontSize="small" />}
+                <AccountCircle fontSize="small" />
               </IconButton>
-            </Tooltip>
+            )}
           </Stack>
         </Stack>
       </Paper>
