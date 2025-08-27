@@ -34,13 +34,8 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
         const stored = window.localStorage.getItem('themeMode') as AppThemeMode | null;
         if (stored === 'light' || stored === 'dark') return stored;
       } catch {}
-      if (window.matchMedia) {
-        return window.matchMedia('(prefers-color-scheme: dark)').matches
-          ? 'dark'
-          : 'light';
-      }
     }
-    return 'light';
+    return 'dark';
   });
 
   const currentTheme = mode === 'light' ? lightTheme : darkTheme;

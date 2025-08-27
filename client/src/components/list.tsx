@@ -60,7 +60,7 @@ const SearchBar: React.FC<{
 	onSearch: (text: string) => void;
 }> = ({ onToggleFilter, isFilterActive, onSearch }) => {
   const theme = useTheme();
-  const surfaceBg = alpha(theme.palette.light.main, 0.06);
+  const surfaceBg = theme.palette.mode === 'light' ? '#ECECED' : '#262628';
   const surfaceBorder = alpha(theme.palette.light.main, 0.12);
   const [text, setText] = React.useState<string>('');
 
@@ -76,6 +76,7 @@ const SearchBar: React.FC<{
         borderRadius: 2,
         bgcolor: surfaceBg,
         border: `1px solid ${surfaceBorder}`,
+        transition: 'background-color 0ms linear, border-color 120ms ease',
       }}
     >
       <Button
@@ -129,9 +130,9 @@ const SearchBar: React.FC<{
 
 const TrapRow: React.FC<{ trap: Trap }> = ({ trap }) => {
   const theme = useTheme();
-  const surfaceBg = alpha(theme.palette.light.main, 0.06);
+  const surfaceBg = theme.palette.mode === 'light' ? '#ECECED' : '#262628';
   const surfaceBorder = alpha(theme.palette.light.main, 0.12);
-  const hoverBg = alpha(theme.palette.light.main, 0.12);
+  const hoverBg = theme.palette.mode === 'light' ? '#DEDEDE' : '#333335';
 
   const avg = trap.rating?.average ?? trap.tierlistRating?.average ?? 0;
   const cnt = trap.rating?.count ?? trap.tierlistRating?.count ?? undefined;
@@ -160,7 +161,7 @@ const TrapRow: React.FC<{ trap: Trap }> = ({ trap }) => {
         borderRadius: 2,
         p: 1.25,
         position: 'relative',
-        transition: 'background-color 120ms ease, transform 150ms ease, border-color 120ms ease',
+        transition: 'background-color 0ms linear, transform 150ms ease, border-color 120ms ease',
         '&:hover': {
           bgcolor: hoverBg,
           borderColor: alpha(theme.palette.light.main, 0.18),
@@ -330,15 +331,19 @@ const TrapList: React.FC = () => {
       px: 2,
       pb: 6,
       position: 'relative',
-      '&::before': {
-        content: '""',
-        position: 'absolute',
-        inset: 0,
-        borderRadius: 2,
-        backgroundColor: theme.palette.dark.main,
-        zIndex: 0,
-      }
     }}>
+      <Box
+        sx={{
+          position: 'absolute',
+          top: 0,
+          left: 17,
+          right: 17, 
+          bottom: 0,
+          bgcolor: theme.palette.background.default,
+          borderRadius: 2,
+          zIndex: 0,
+        }}
+      />
       <Stack spacing={2} sx={{ position: 'relative', zIndex: 1 }}>
         <Box sx={{ mt: 2 }}>
           <SearchBar

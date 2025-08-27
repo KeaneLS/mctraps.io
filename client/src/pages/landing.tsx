@@ -5,7 +5,7 @@ import Navbar from '../components/Navbar';
 import TrapList from '../components/list';
 import Popup from '../components/popup';
 import { useAuth } from '../firebase/authContext';
-import ParticlesBg from '../components/ParticlesBg';
+import CoalesceController from '../components/CoalesceController';
 
 const Landing: React.FC = () => {
   const [mode, setMode] = React.useState<AppThemeMode>(() => {
@@ -14,11 +14,8 @@ const Landing: React.FC = () => {
         const stored = window.localStorage.getItem('themeMode') as AppThemeMode | null;
         if (stored === 'light' || stored === 'dark') return stored;
       } catch {}
-      if (window.matchMedia) {
-        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      }
     }
-    return 'light';
+    return 'dark';
   });
   const currentTheme = mode === 'light' ? lightTheme : darkTheme;
   const toggleMode = React.useCallback(() => {
@@ -45,7 +42,7 @@ const Landing: React.FC = () => {
   return (
     <ThemeProvider theme={currentTheme}>
       <CssBaseline />
-      <ParticlesBg />
+      <CoalesceController mode={mode} />
       <Navbar mode={mode} onToggleTheme={toggleMode} />
       <Box sx={{ height: 96 }} />
       <TrapList />

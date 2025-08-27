@@ -30,8 +30,8 @@ declare module '@mui/material/IconButton' {
 
 const colors = {
   brand: '#4ade80',
-  light: '#fafafa', // light surface
-  dark: '#18181b',   // dark surface
+  light: '#fafafa', 
+  dark: '#18181b',  
 };
 
 export type AppThemeMode = 'light' | 'dark';
@@ -41,7 +41,6 @@ export const createAppTheme = (mode: AppThemeMode = 'dark') => {
   const backgroundDefault = isLight ? colors.light : colors.dark;
   const backgroundPaper = backgroundDefault;
   const textPrimary = isLight ? colors.dark : colors.light;
-  // Swap the meaning of custom light/dark swatches when in light mode
   const paletteLightMain = isLight ? colors.dark : colors.light;
   const paletteDarkMain = isLight ? colors.light : colors.dark;
 
