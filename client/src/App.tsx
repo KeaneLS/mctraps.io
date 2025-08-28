@@ -2,10 +2,12 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Landing from './pages/landing';
 import Login from './pages/login';
+import CoalesceController from './components/CoalesceController';
 
 const App: React.FC = () => {
   return (
     <BrowserRouter>
+      <CoalesceController active={true} />
       <Routes>
         <Route path="/" element={<Navigate to="/home" replace />} />
         <Route path="/home" element={<Landing />} />

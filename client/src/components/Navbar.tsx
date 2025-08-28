@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Button, Paper, Stack, Typography, IconButton, Avatar } from '@mui/material';
-import { AccountCircle, DarkMode, LightMode, Logout } from '@mui/icons-material';
+import { AccountCircle, DarkMode, LightMode, Logout, BlurOn, BlurOff } from '@mui/icons-material';
 import { alpha, useTheme } from '@mui/material/styles';
 import Logo from './icons/logo';
 import { Link as RouterLink } from 'react-router-dom';
@@ -45,6 +45,35 @@ const Navbar: React.FC<NavbarProps> = ({ mode = 'light', onToggleTheme }) => {
   const surfaceBorder = alpha(theme.palette.light.main, 0.12);
   const hoverBg = alpha(theme.palette.light.main, 0.1);
   const { currentUser, logout } = useAuth();
+
+  const [particlesEnabled, setParticlesEnabled] = React.useState<boolean>(() => {
+    try {
+      const stored = window.localStorage.getItem('particlesEnabled');
+      return stored === null ? true : stored === 'true';
+    } catch {}
+    return true;
+  });
+
+  const toggleParticles = React.useCallback(() => {
+    setParticlesEnabled((prev) => {
+      const next = !prev;
+      try { window.localStorage.setItem('particlesEnabled', String(next)); } catch {}
+      try {
+        (window as any).__COALESCE_USER_ENABLED__ = next;
+        (window as any).__COALESCE_REQUESTED__ = next;
+        if (next) {
+          if (typeof (window as any).__COALESCE_SETUP__ === 'function') (window as any).__COALESCE_SETUP__();
+          if (typeof (window as any).__COALESCE_SET_VISIBLE__ === 'function') (window as any).__COALESCE_SET_VISIBLE__(true);
+        } else {
+          if (typeof (window as any).__COALESCE_SET_VISIBLE__ === 'function') (window as any).__COALESCE_SET_VISIBLE__(false);
+          if (typeof (window as any).__COALESCE_DESTROY__ === 'function') (window as any).__COALESCE_DESTROY__();
+        }
+        const evt = new Event('COALESCE_ENABLED_CHANGED');
+        window.dispatchEvent(evt);
+      } catch {}
+      return next;
+    });
+  }, []);
 
   return (
     <Box
@@ -180,6 +209,26 @@ const Navbar: React.FC<NavbarProps> = ({ mode = 'light', onToggleTheme }) => {
               aria-label="Toggle theme"
             >
               {mode === 'light' ? <DarkMode fontSize="small" /> : <LightMode fontSize="small" />}
+            </IconButton>
+            <IconButton
+              color="inherit"
+              onClick={toggleParticles}
+              sx={{
+                width: 36,
+                height: 36,
+                borderRadius: 9,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                p: 0,
+                border: `1px solid ${surfaceBorder}`,
+                bgcolor: alpha(theme.palette.light.main, 0.04),
+                transition: 'transform 0.2s ease, background-color 0.2s ease',
+                '&:hover': { bgcolor: hoverBg, borderColor: alpha(theme.palette.light.main, 0.2), transform: 'translateY(-1px)' }
+              }}
+              aria-label="Toggle particles"
+            >
+              {particlesEnabled ? <BlurOn fontSize="small" /> : <BlurOff fontSize="small" />}
             </IconButton>
             {currentUser && (
               <IconButton

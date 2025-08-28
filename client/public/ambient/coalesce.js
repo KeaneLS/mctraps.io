@@ -3,15 +3,15 @@
 if (window.__COALESCE_DEFINED__) { window.__COALESCE_SETUP__ && window.__COALESCE_SETUP__(); return; }
 window.__COALESCE_DEFINED__ = true;
 
-const particleCount = 50;
+const particleCount = 40;
 const particlePropCount = 9;
 const particlePropsLength = particleCount * particlePropCount;
 const baseTTL = 100;
 const rangeTTL = 500;
 const baseSpeed = 0;
-const rangeSpeed = 0.05;
-const baseSize = 2;
-const rangeSize = 10;
+const rangeSpeed = 0.04;
+const baseSize = 7;
+const rangeSize = 3;
 const baseHue = 10;
 const rangeHue = 100;
 const noiseSteps = 2;
@@ -72,6 +72,10 @@ let sizes;
 let hues;
 
 function setup() {
+  if (active) {
+    return;
+  }
+  active = true;
 	createCanvas();
   resize();
   initParticles();
@@ -163,6 +167,17 @@ function drawParticle(x, y, theta, life, ttl, size, hue) {
 
 function createCanvas() {
   container = document.querySelector('.content--canvas');
+  if (!container) {
+    try {
+      container = document.createElement('div');
+      container.className = 'content content--canvas';
+      container.setAttribute('aria-hidden', 'true');
+      container.style.pointerEvents = 'none';
+      container.style.zIndex = '0';
+      var mount = document.body;
+      mount && mount.appendChild(container);
+    } catch (e) {}
+  }
 	canvas = {
 		a: document.createElement('canvas'),
 		b: document.createElement('canvas')
@@ -173,6 +188,7 @@ function createCanvas() {
 		left: 0;
 		width: 100%;
 		height: 100%;
+		z-index: 0;
 	`;
 	container && container.appendChild(canvas.b);
 	ctx = {
@@ -183,6 +199,9 @@ function createCanvas() {
 }
 
 function resize() {
+  if (!canvas || !canvas.a || !canvas.b || !ctx || !ctx.a || !ctx.b) {
+    return;
+  }
 	const { innerWidth, innerHeight } = window;
 	
 	canvas.a.width = innerWidth;
@@ -230,9 +249,7 @@ function draw() {
 
   ctx.a.clearRect(0, 0, canvas.a.width, canvas.a.height);
 
-  currentColors = getColors();
-  ctx.b.fillStyle = currentColors.background;
-  ctx.b.fillRect(0, 0, canvas.a.width, canvas.a.height);
+  ctx.b.clearRect(0, 0, canvas.a.width, canvas.a.height);
 
   drawParticles();
   renderGlow();
@@ -264,8 +281,26 @@ window.__COALESCE_FORCE_RECOLOR__ = function(){
 window.__COALESCE_SET_PARTICLE_COLOR__ = function(hex){
   overrideParticleColorHex = hex;
 };
+window.__COALESCE_IS_ACTIVE__ = function(){
+  return !!active;
+};
+window.__COALESCE_SET_VISIBLE__ = function(visible){
+  try {
+    if (!container) {
+      container = document.querySelector('.content--canvas');
+    }
+    if (container && container.style) {
+      container.style.display = visible ? '' : 'none';
+    }
+  } catch {}
+};
 
-window.addEventListener('load', setup);
+try {
+  setup();
+} catch (e) {}
+
+window.addEventListener('DOMContentLoaded', function(){ try { setup(); } catch(e){} });
+window.addEventListener('load', function(){ try { setup(); } catch(e){} });
 window.addEventListener('resize', resize);
 
 })();

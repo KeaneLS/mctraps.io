@@ -4,56 +4,109 @@ declare global {
   interface Window {
     __COALESCE_SETUP__?: () => void;
     __COALESCE_DESTROY__?: () => void;
+    __COALESCE_REQUESTED__?: boolean;
+    __COALESCE_DESTROY_TIMER__?: number;
+    __COALESCE_IS_ACTIVE__?: () => boolean;
+    __COALESCE_USER_ENABLED__?: boolean;
   }
 }
 
-const CoalesceController: React.FC<{ mode?: 'light' | 'dark' }> = ({ mode }) => {
+const CoalesceController: React.FC<{ mode?: 'light' | 'dark'; active?: boolean }> = ({ mode, active = true }) => {
   const ref = React.useRef<HTMLDivElement | null>(null);
 
-  React.useEffect(() => {
-    const mount = document.getElementById('coalesce-root');
-    if (!mount) return;
-    const container = document.createElement('div');
-    container.className = 'content content--canvas';
-    container.setAttribute('aria-hidden', 'true');
-    (container.style as any).pointerEvents = 'none';
-    (container.style as any).zIndex = '0';
-    mount.appendChild(container);
+  React.useLayoutEffect(() => {
+    if (!active) return;
+    const mount = document.body;
+    const readUserEnabled = (): boolean => {
+      try {
+        if (typeof window.__COALESCE_USER_ENABLED__ === 'boolean') return !!window.__COALESCE_USER_ENABLED__;
+        const stored = window.localStorage.getItem('particlesEnabled');
+        return stored === null ? true : stored === 'true';
+      } catch {}
+      return true;
+    };
+    window.__COALESCE_USER_ENABLED__ = readUserEnabled();
+    const desiredActive = !!active && !!window.__COALESCE_USER_ENABLED__;
+    (window as any).__COALESCE_REQUESTED__ = desiredActive;
+    if (typeof window.__COALESCE_DESTROY_TIMER__ === 'number') {
+      try { window.clearTimeout(window.__COALESCE_DESTROY_TIMER__); } catch {}
+      window.__COALESCE_DESTROY_TIMER__ = undefined;
+    }
 
-    const loadScript = (src: string) => new Promise<void>((resolve, reject) => {
-      const existing = Array.from(document.getElementsByTagName('script')).some(s => s.src && s.src.indexOf(src) !== -1);
-      if (existing) return resolve();
-      const s = document.createElement('script');
-      s.src = src;
-      s.onload = () => resolve();
-      s.onerror = () => reject(new Error('Failed to load ' + src));
-      document.body.appendChild(s);
-    });
+    const loadScript = (_src: string) => Promise.resolve();
 
     let cancelled = false;
+
+    let retryInterval: number | undefined;
+    let retryDeadline = Date.now() + 4000;
 
     (async () => {
       try {
         (window as any).__COALESCE_SCRIPTS_LOADED__ = (window as any).__COALESCE_SCRIPTS_LOADED__ || false;
         if (!(window as any).__COALESCE_SCRIPTS_LOADED__) {
-          const base = (process.env && (process.env as any).PUBLIC_URL) || '';
-          await loadScript(base + '/ambient/noise.min.js');
-          await loadScript(base + '/ambient/util.js');
-          await loadScript(base + '/ambient/coalesce.js');
           (window as any).__COALESCE_SCRIPTS_LOADED__ = true;
         }
-        if (!cancelled) {
-          window.__COALESCE_SETUP__ && window.__COALESCE_SETUP__();
+        if ((window as any).__COALESCE_REQUESTED__ && typeof window.__COALESCE_SETUP__ === 'function') {
+          window.__COALESCE_SETUP__();
+        } else if (!(window as any).__COALESCE_REQUESTED__ && typeof window.__COALESCE_DESTROY__ === 'function') {
+          window.__COALESCE_DESTROY__();
         }
+        try {
+          requestAnimationFrame(() => {
+            if ((window as any).__COALESCE_REQUESTED__ && typeof (window as any).__COALESCE_IS_ACTIVE__ === 'function' && !(window as any).__COALESCE_IS_ACTIVE__()) {
+              window.__COALESCE_SETUP__ && window.__COALESCE_SETUP__();
+            }
+            requestAnimationFrame(() => {
+              if ((window as any).__COALESCE_REQUESTED__ && typeof (window as any).__COALESCE_IS_ACTIVE__ === 'function' && !(window as any).__COALESCE_IS_ACTIVE__()) {
+                window.__COALESCE_SETUP__ && window.__COALESCE_SETUP__();
+              }
+            });
+          });
+        } catch {}
+
+        try {
+          retryInterval = window.setInterval(() => {
+            if (cancelled) { if (retryInterval) { window.clearInterval(retryInterval); retryInterval = undefined; } return; }
+            if (!(window as any).__COALESCE_REQUESTED__) { if (retryInterval) { window.clearInterval(retryInterval); retryInterval = undefined; } return; }
+            const isActive = typeof (window as any).__COALESCE_IS_ACTIVE__ === 'function' ? (window as any).__COALESCE_IS_ACTIVE__() : false;
+            if (typeof window.__COALESCE_SETUP__ === 'function' && !isActive) {
+              try { window.__COALESCE_SETUP__(); } catch {}
+            }
+            if (Date.now() > retryDeadline || (typeof (window as any).__COALESCE_IS_ACTIVE__ === 'function' && (window as any).__COALESCE_IS_ACTIVE__())) {
+              if (retryInterval) { window.clearInterval(retryInterval); retryInterval = undefined; }
+            }
+          }, 100);
+        } catch {}
       } catch {}
     })();
 
+    const onToggle = () => {
+      const userEnabled = readUserEnabled();
+      window.__COALESCE_USER_ENABLED__ = userEnabled;
+      const want = !!active && userEnabled;
+      (window as any).__COALESCE_REQUESTED__ = want;
+      if (want) {
+        if (typeof window.__COALESCE_SETUP__ === 'function') window.__COALESCE_SETUP__();
+      } else {
+        if (typeof window.__COALESCE_DESTROY__ === 'function') window.__COALESCE_DESTROY__();
+      }
+    };
+    window.addEventListener('COALESCE_ENABLED_CHANGED', onToggle as any);
+
     return () => {
       cancelled = true;
-      window.__COALESCE_DESTROY__ && window.__COALESCE_DESTROY__();
-      try { mount.removeChild(container); } catch {}
+      try { if (retryInterval) { window.clearInterval(retryInterval); retryInterval = undefined; } } catch {}
+      (window as any).__COALESCE_REQUESTED__ = false;
+      window.removeEventListener('COALESCE_ENABLED_CHANGED', onToggle as any);
+      try {
+        window.__COALESCE_DESTROY_TIMER__ = window.setTimeout(() => {
+          if (!(window as any).__COALESCE_REQUESTED__) {
+            window.__COALESCE_DESTROY__ && window.__COALESCE_DESTROY__();
+          }
+        }, 1500);
+      } catch {}
     };
-  }, []);
+  }, [active]);
 
   React.useEffect(() => {
     if (mode === 'light' || mode === 'dark') {

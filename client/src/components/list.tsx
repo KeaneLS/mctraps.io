@@ -341,7 +341,7 @@ const TrapList: React.FC = () => {
           bottom: 0,
           bgcolor: theme.palette.background.default,
           borderRadius: 2,
-          zIndex: 0,
+          zIndex: -1,
         }}
       />
       <Stack spacing={2} sx={{ position: 'relative', zIndex: 1 }}>

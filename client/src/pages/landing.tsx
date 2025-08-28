@@ -5,7 +5,6 @@ import Navbar from '../components/Navbar';
 import TrapList from '../components/list';
 import Popup from '../components/popup';
 import { useAuth } from '../firebase/authContext';
-import CoalesceController from '../components/CoalesceController';
 
 const Landing: React.FC = () => {
   const [mode, setMode] = React.useState<AppThemeMode>(() => {
@@ -42,7 +41,6 @@ const Landing: React.FC = () => {
   return (
     <ThemeProvider theme={currentTheme}>
       <CssBaseline />
-      <CoalesceController mode={mode} />
       <Navbar mode={mode} onToggleTheme={toggleMode} />
       <Box sx={{ height: 96 }} />
       <TrapList />

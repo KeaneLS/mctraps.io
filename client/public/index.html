@@ -30,11 +30,14 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;500;600;700;900&display=swap" rel="stylesheet" />
     <title>MCTraps - Become a Trapping Pro</title>
+    <script defer src="%PUBLIC_URL%/ambient/noise.min.js"></script>
+    <script defer src="%PUBLIC_URL%/ambient/util.js"></script>
+    <script defer src="%PUBLIC_URL%/ambient/coalesce.js"></script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="coalesce-root" aria-hidden="true"></div>
-    <div id="root"></div>
+    <div id="coalesce-root" aria-hidden="true" style="position:relative; z-index:0"></div>
+    <div id="root" style="position:relative; z-index:1"></div>
     
   </body>
 </html>
