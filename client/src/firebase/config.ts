@@ -15,14 +15,10 @@ const firebaseConfig = {
 
 export const app = getApps().length ? getApps()[0]! : initializeApp(firebaseConfig);
 
-if (typeof window !== "undefined") {
-  initializeAppCheck(app, {
-    provider: new ReCaptchaEnterpriseProvider(
-      process.env.REACT_APP_FIREBASE_SITE_KEY as string
-    ),
-    isTokenAutoRefreshEnabled: true,
-  });
-}
+initializeAppCheck(app, {
+  provider: new ReCaptchaEnterpriseProvider(process.env.REACT_APP_FIREBASE_SITE_KEY as string),
+  isTokenAutoRefreshEnabled: true,
+});
 
 export const db = getFirestore(app);
 export const auth = getAuth(app);

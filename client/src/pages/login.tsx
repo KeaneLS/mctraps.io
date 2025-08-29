@@ -11,6 +11,7 @@ import {
   Stack,
   IconButton,
   InputAdornment,
+  SvgIcon,
 } from '@mui/material';
 import { Google, Visibility, VisibilityOff } from '@mui/icons-material';
 import { darkTheme, lightTheme, AppThemeMode } from '../theme';
@@ -119,6 +120,38 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
 
     const cleaned = withoutCode || friendlyByCode[code] || 'Something went wrong. Please try again.';
     return /[\.!?]$/.test(cleaned) ? cleaned : cleaned + '.';
+  }
+
+  const DiscordIcon: React.FC<React.ComponentProps<typeof SvgIcon>> = (props) => (
+    <SvgIcon {...props} viewBox="0 0 24 24">
+      <path d="M20.317 4.369a19.791 19.791 0 00-4.885-1.515.07.07 0 00-.073.035c-.21.375-.444.864-.608 1.249-1.844-.276-3.68-.276-5.486 0-.164-.398-.405-.874-.617-1.249a.07.07 0 00-.073-.035A19.736 19.736 0 003.677 4.37a.064.064 0 00-.032.027C.533 9.046-.32 13.58.099 18.061a.074.074 0 00.028.052 19.9 19.9 0 005.993 3.03.07.07 0 00.075-.026c.461-.63.873-1.295 1.226-1.994a.07.07 0 00-.038-.098 12.793 12.793 0 01-1.81-.86.07.07 0 01-.007-.118c.122-.091.244-.186.361-.282a.07.07 0 01.073-.01c3.802 1.742 7.915 1.742 11.676 0a.07.07 0 01.074.009c.117.096.239.192.362.283a.07.07 0 01-.006.118 12.3 12.3 0 01-1.81.86.07.07 0 00-.037.098c.36.699.772 1.365 1.225 1.994a.07.07 0 00.076.026 19.9 19.9 0 005.993-3.03.07.07 0 00.028-.052c.5-5.177-.838-9.674-3.548-13.665a.056.056 0 00-.031-.027zM8.02 15.33c-1.146 0-2.087-1.053-2.087-2.35 0-1.296.925-2.35 2.087-2.35 1.17 0 2.105 1.06 2.087 2.35 0 1.297-.925 2.35-2.087 2.35zm7.975 0c-1.146 0-2.087-1.053-2.087-2.35 0-1.296.925-2.35 2.087-2.35 1.17 0 2.105 1.06 2.087 2.35 0 1.297-.925 2.35-2.087 2.35z" />
+    </SvgIcon>
+  );
+
+  function openCenteredPopup(url: string, title: string, width = 500, height = 650) {
+    if (!url) return;
+    const dualScreenLeft = (window as any).screenLeft !== undefined ? (window as any).screenLeft : (window as any).screenX;
+    const dualScreenTop = (window as any).screenTop !== undefined ? (window as any).screenTop : (window as any).screenY;
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || (window.screen ? window.screen.width : 0);
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || (window.screen ? window.screen.height : 0);
+    const left = Math.max(0, dualScreenLeft + (viewportWidth - width) / 2);
+    const top = Math.max(0, dualScreenTop + (viewportHeight - height) / 2);
+    const features = `scrollbars=yes,width=${width},height=${height},top=${top},left=${left},toolbar=no,location=no,status=no,menubar=no,resizable=yes`;
+    const popup = window.open(url, title, features);
+    if (!popup) {
+      window.location.href = url;
+      return;
+    }
+    try { popup.focus(); } catch {}
+  }
+
+  function handleDiscordAuth() {
+    const url = (process.env.REACT_APP_DISCORD_LOGIN_LINK as string) || '';
+    if (!url) {
+      setError('Discord login is not configured.');
+      return;
+    }
+    openCenteredPopup(url, 'Discord Login');
   }
 
   if (embedded) {
@@ -240,29 +273,56 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
               {!isResetMode && (<Divider>OR</Divider>)}
 
               {!isResetMode && (
-              <Button
-                variant="outlined"
-                size="large"
-                fullWidth
-                startIcon={<Google />}
-                color="inherit"
-                sx={{
-                  height: 52,
-                  px: 2,
-                  borderColor: alpha(themeForEmbedded.palette.light.main, 0.12),
-                  bgcolor: alpha(themeForEmbedded.palette.light.main, 0.04),
-                  textTransform: 'none',
-                  transition: 'transform 0.2s ease',
-                  '&:hover': {
-                    bgcolor: alpha(themeForEmbedded.palette.light.main, 0.1),
-                    borderColor: alpha(themeForEmbedded.palette.light.main, 0.2),
-                    transform: 'translateY(-1px)',
-                  },
-                }}
-                onClick={handleGoogleAuth}
-              >
-                {isSignup ? 'Sign up with Google' : 'Log in with Google'}
-              </Button>)}
+              <>
+                <Button
+                  variant="outlined"
+                  size="large"
+                  fullWidth
+                  startIcon={<DiscordIcon />}
+                  color="inherit"
+                  sx={{
+                    height: 52,
+                    px: 2,
+                    borderColor: alpha(themeForEmbedded.palette.light.main, 0.12),
+                    bgcolor: alpha(themeForEmbedded.palette.light.main, 0.04),
+                    textTransform: 'none',
+                    transition: 'transform 0.2s ease',
+                    '&:hover': {
+                      bgcolor: alpha(themeForEmbedded.palette.light.main, 0.1),
+                      borderColor: alpha(themeForEmbedded.palette.light.main, 0.2),
+                      transform: 'translateY(-1px)',
+                    },
+                  }}
+                  onClick={handleDiscordAuth}
+                >
+                  {isSignup ? 'Sign up with Discord' : 'Log in with Discord'}
+                </Button>
+
+                <Button
+                  variant="outlined"
+                  size="large"
+                  fullWidth
+                  startIcon={<Google />}
+                  color="inherit"
+                  sx={{
+                    height: 52,
+                    px: 2,
+                    borderColor: alpha(themeForEmbedded.palette.light.main, 0.12),
+                    bgcolor: alpha(themeForEmbedded.palette.light.main, 0.04),
+                    textTransform: 'none',
+                    transition: 'transform 0.2s ease',
+                    '&:hover': {
+                      bgcolor: alpha(themeForEmbedded.palette.light.main, 0.1),
+                      borderColor: alpha(themeForEmbedded.palette.light.main, 0.2),
+                      transform: 'translateY(-1px)',
+                    },
+                  }}
+                  onClick={handleGoogleAuth}
+                >
+                  {isSignup ? 'Sign up with Google' : 'Log in with Google'}
+                </Button>
+              </>
+              )}
 
               {isSignup && (
                 <Typography variant="body2" sx={{ mt: 2, textAlign: 'center', color: alpha(themeForEmbedded.palette.light.main, 0.7) }}>
@@ -292,8 +352,12 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
       navigate('/home');
     } catch (err: any) {
       setError(formatAuthError(err));
-      console.log("Error signing in:", err.message);
-      console.log("login info:", email, password);
+      try {
+        console.log("Error signing in:", err?.message || err);
+      } catch {}
+      try {
+        console.log("login info:", email, password);
+      } catch {}
     } finally {
       setIsSubmitting(false);
     }
@@ -309,7 +373,7 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
       navigate('/home');
     } catch (err: any) {
       setError(formatAuthError(err));
-      console.log("Error signing in:", err.message);
+      try { console.log("Error signing in:", err?.message || err); } catch {}
     }
   }
 
@@ -530,29 +594,56 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
               {!isResetMode && (<Divider>OR</Divider>)}
 
               {!isResetMode && (
-              <Button
-                variant="outlined"
-                size="large"
-                fullWidth
-                startIcon={<Google />}
-                color="inherit"
-                sx={{
-                  height: 52,
-                  px: 2,
-                  borderColor: alpha(currentTheme.palette.light.main, 0.12),
-                  bgcolor: alpha(currentTheme.palette.light.main, 0.04),
-                  textTransform: 'none',
-                  transition: 'transform 0.2s ease',
-                  '&:hover': {
-                    bgcolor: alpha(currentTheme.palette.light.main, 0.1),
-                    borderColor: alpha(currentTheme.palette.light.main, 0.2),
-                    transform: 'translateY(-1px)',
-                  },
-                }}
-                onClick={handleGoogleAuth}
-              >
-                {isSignup ? 'Sign up with Google' : 'Log in with Google'}
-              </Button>)}
+              <>
+                <Button
+                  variant="outlined"
+                  size="large"
+                  fullWidth
+                  startIcon={<DiscordIcon />}
+                  color="inherit"
+                  sx={{
+                    height: 52,
+                    px: 2,
+                    borderColor: alpha(currentTheme.palette.light.main, 0.12),
+                    bgcolor: alpha(currentTheme.palette.light.main, 0.04),
+                    textTransform: 'none',
+                    transition: 'transform 0.2s ease',
+                    '&:hover': {
+                      bgcolor: alpha(currentTheme.palette.light.main, 0.1),
+                      borderColor: alpha(currentTheme.palette.light.main, 0.2),
+                      transform: 'translateY(-1px)',
+                    },
+                  }}
+                  onClick={handleDiscordAuth}
+                >
+                  {isSignup ? 'Sign up with Discord' : 'Log in with Discord'}
+                </Button>
+
+                <Button
+                  variant="outlined"
+                  size="large"
+                  fullWidth
+                  startIcon={<Google />}
+                  color="inherit"
+                  sx={{
+                    height: 52,
+                    px: 2,
+                    borderColor: alpha(currentTheme.palette.light.main, 0.12),
+                    bgcolor: alpha(currentTheme.palette.light.main, 0.04),
+                    textTransform: 'none',
+                    transition: 'transform 0.2s ease',
+                    '&:hover': {
+                      bgcolor: alpha(currentTheme.palette.light.main, 0.1),
+                      borderColor: alpha(currentTheme.palette.light.main, 0.2),
+                      transform: 'translateY(-1px)',
+                    },
+                  }}
+                  onClick={handleGoogleAuth}
+                >
+                  {isSignup ? 'Sign up with Google' : 'Log in with Google'}
+                </Button>
+              </>
+              )}
 
               {isSignup && (
                 <Typography variant="body2" sx={{ mt: 2, textAlign: 'center', color: alpha(currentTheme.palette.light.main, 0.7) }}>
