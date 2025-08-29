@@ -151,6 +151,8 @@ const TrapRow: React.FC<{ trap: Trap }> = ({ trap }) => {
     const d = new Date(trap.dateInvented);
     return isNaN(d.getTime()) ? trap.dateInvented : d.toLocaleDateString();
   })();
+  const metaMinigame = trap.minigame;
+  const metaType = trap.type;
 
   return (
     <Paper
@@ -176,6 +178,23 @@ const TrapRow: React.FC<{ trap: Trap }> = ({ trap }) => {
       >
         {invented}
       </Typography>
+      {(metaMinigame || metaType) && (
+        <Stack
+          spacing={0}
+          sx={{ position: 'absolute', bottom: 8, right: 12, alignItems: 'flex-end' }}
+        >
+          {metaMinigame && (
+            <Typography variant="caption" sx={{ opacity: 0.7, fontWeight: 600 }}>
+              {metaMinigame}
+            </Typography>
+          )}
+          {metaType && (
+            <Typography variant="caption" sx={{ opacity: 0.7, fontWeight: 600 }}>
+              {metaType}
+            </Typography>
+          )}
+        </Stack>
+      )}
       <Stack direction="row" spacing={2} alignItems="center">
         <Box
           component="img"

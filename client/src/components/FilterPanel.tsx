@@ -178,38 +178,19 @@ const FilterPanel: React.FC<Props> = ({ value, onChange, cardLightness = 0.04 })
                 <Stack direction="row" spacing={0.5} alignItems="center">
                   <IconButton
                     color={dateDirection === 'asc' ? 'primary' : 'inherit'}
-                    onClick={() => setDateDirection('asc')}
+                    onClick={() => setDateDirection(dateDirection === 'asc' ? undefined : 'asc')}
                     aria-label="ascending"
                   >
                     <ArrowUpward />
                   </IconButton>
                   <IconButton
                     color={dateDirection === 'desc' ? 'primary' : 'inherit'}
-                    onClick={() => setDateDirection('desc')}
+                    onClick={() => setDateDirection(dateDirection === 'desc' ? undefined : 'desc')}
                     aria-label="descending"
                   >
                     <ArrowDownward />
                   </IconButton>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    color="inherit"
-                    onClick={() => setDateDirection(undefined)}
-                    sx={{
-                      ml: 0.5,
-                      textTransform: 'none',
-                      minWidth: 0,
-                      px: 1,
-                      py: 0.25,
-                      height: 28,
-                      lineHeight: 1,
-                      borderRadius: 2,
-                      color: 'brand.main',
-                      '&:hover': { bgcolor: alpha(theme.palette.brand.main, 0.08) }
-                    }}
-                  >
-                    Clear
-                  </Button>
+                  
                 </Stack>
               </Stack>
             </Paper>
@@ -245,38 +226,19 @@ const FilterPanel: React.FC<Props> = ({ value, onChange, cardLightness = 0.04 })
                 <Stack direction="row" spacing={0.5} alignItems="center">
                   <IconButton
                     color={tierDirection === 'asc' ? 'primary' : 'inherit'}
-                    onClick={() => setTierDirection('asc')}
+                    onClick={() => setTierDirection(tierDirection === 'asc' ? undefined : 'asc')}
                     aria-label="ascending"
                   >
                     <ArrowUpward />
                   </IconButton>
                   <IconButton
                     color={tierDirection === 'desc' ? 'primary' : 'inherit'}
-                    onClick={() => setTierDirection('desc')}
+                    onClick={() => setTierDirection(tierDirection === 'desc' ? undefined : 'desc')}
                     aria-label="descending"
                   >
                     <ArrowDownward />
                   </IconButton>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    color="inherit"
-                    onClick={() => setTierDirection(undefined)}
-                    sx={{
-                      ml: 0.5,
-                      textTransform: 'none',
-                      minWidth: 0,
-                      px: 1,
-                      py: 0.25,
-                      height: 28,
-                      lineHeight: 1,
-                      borderRadius: 2,
-                      color: 'brand.main',
-                      '&:hover': { bgcolor: alpha(theme.palette.brand.main, 0.08) }
-                    }}
-                  >
-                    Clear
-                  </Button>
+                  
                 </Stack>
               </Stack>
             </Paper>
