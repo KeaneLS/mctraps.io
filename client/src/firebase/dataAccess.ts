@@ -1,5 +1,6 @@
-import { db } from "./config";
+import { db, functions } from "./config";
 import { collection, addDoc, getDocs, QueryDocumentSnapshot, DocumentData } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
 
 function getYouTubeThumbnail(youtubeUrl: string): string {
   let videoId: string;
@@ -106,4 +107,22 @@ export async function readTraps() {
   const traps = querySnapshot.docs.map((doc: QueryDocumentSnapshot<DocumentData>) => ({ id: doc.id, ...doc.data() }));
   console.log("Read the following traps:", traps);
   return traps;
+}
+
+export type TierLetter = 'S' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
+export type MinigameOption = 'UHC' | 'SMP' | 'HCF' | 'Hoplite' | 'Skywars' | 'Walls' | 'Speed UHC';
+export type TypeOption = 'Main' | 'Backup' | 'Hybrid';
+
+export type FilterPayload = {
+  dateInvented?: { from?: string; to?: string; direction?: 'asc' | 'desc' };
+  tierlistRating?: { ratings: TierLetter[]; direction?: 'asc' | 'desc' };
+  minigames?: MinigameOption[];
+  types?: TypeOption[];
+  search?: string;
+};
+
+export async function searchTraps(payload: FilterPayload) {
+  const callable = httpsCallable(functions, 'searchTraps');
+  const res = await callable(payload);
+  return res.data as any[];
 }

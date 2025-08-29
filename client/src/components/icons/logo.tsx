@@ -14,7 +14,6 @@ export type LogoProps = MotionProps & React.HTMLAttributes<HTMLDivElement> & {
   retractDuration?: number;
   // When this number changes, the retract animation will be triggered
   triggerKey?: number;
-  // Optional theme override. If provided, overrides the MUI context theme
   theme?: Theme;
 };
 

@@ -1,10 +1,8 @@
-import {setGlobalOptions} from "firebase-functions";
-import {onRequest} from "firebase-functions/https";
-import * as logger from "firebase-functions/logger";
+import {initializeApp, getApps} from "firebase-admin/app";
+import {searchTraps} from "./searchTraps";
 
-setGlobalOptions({maxInstances: 10});
+if (getApps().length === 0) {
+  initializeApp();
+}
 
-export const helloWorld = onRequest((request, response) => {
-  logger.info("Hello logs!", {structuredData: true});
-  response.send("Hello from Firebase!");
-});
+export {searchTraps};

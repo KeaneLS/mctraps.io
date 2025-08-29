@@ -54,25 +54,25 @@ const FilterPanel: React.FC<Props> = ({ value, onChange, cardLightness = 0.04 })
 
   const [fromDate, setFromDate] = React.useState<Date | null>(null);
   const [toDate, setToDate] = React.useState<Date | null>(null);
-  const [dateDirection, setDateDirection] = React.useState<'asc' | 'desc'>('desc');
+  const [dateDirection, setDateDirection] = React.useState<'asc' | 'desc' | undefined>(undefined);
 
   const [tiers, setTiers] = React.useState<TierLetter[]>([]);
-  const [tierDirection, setTierDirection] = React.useState<'asc' | 'desc'>('desc');
+  const [tierDirection, setTierDirection] = React.useState<'asc' | 'desc' | undefined>(undefined);
 
   const [minigames, setMinigames] = React.useState<MinigameOption[]>([]);
   const [types, setTypes] = React.useState<TypeOption[]>([]);
 
   const buildPayload = (): FilterPayload => {
     const payload: FilterPayload = {};
-    if (fromDate || toDate || dateDirection) {
+    if (fromDate || toDate || typeof dateDirection !== 'undefined') {
       payload.dateInvented = {
         from: fromDate ? formatDate(fromDate, 'yyyy-MM-dd') : undefined,
         to: toDate ? formatDate(toDate, 'yyyy-MM-dd') : undefined,
         direction: dateDirection,
       };
     }
-    if (tiers.length > 0 || tierDirection) {
-      payload.tierlistRating = { ratings: tiers, direction: tierDirection };
+    if (tiers.length > 0 || typeof tierDirection !== 'undefined') {
+      payload.tierlistRating = { ratings: tiers, direction: tierDirection } as any;
     }
     if (minigames.length > 0) payload.minigames = minigames;
     if (types.length > 0) payload.types = types;
@@ -100,9 +100,9 @@ const FilterPanel: React.FC<Props> = ({ value, onChange, cardLightness = 0.04 })
             onClick={() => {
               setFromDate(null);
               setToDate(null);
-              setDateDirection('desc');
+              setDateDirection(undefined);
               setTiers([]);
-              setTierDirection('desc');
+              setTierDirection(undefined);
               setMinigames([]);
               setTypes([]);
             }}
@@ -190,6 +190,26 @@ const FilterPanel: React.FC<Props> = ({ value, onChange, cardLightness = 0.04 })
                   >
                     <ArrowDownward />
                   </IconButton>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="inherit"
+                    onClick={() => setDateDirection(undefined)}
+                    sx={{
+                      ml: 0.5,
+                      textTransform: 'none',
+                      minWidth: 0,
+                      px: 1,
+                      py: 0.25,
+                      height: 28,
+                      lineHeight: 1,
+                      borderRadius: 2,
+                      color: 'brand.main',
+                      '&:hover': { bgcolor: alpha(theme.palette.brand.main, 0.08) }
+                    }}
+                  >
+                    Clear
+                  </Button>
                 </Stack>
               </Stack>
             </Paper>
@@ -237,6 +257,26 @@ const FilterPanel: React.FC<Props> = ({ value, onChange, cardLightness = 0.04 })
                   >
                     <ArrowDownward />
                   </IconButton>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="inherit"
+                    onClick={() => setTierDirection(undefined)}
+                    sx={{
+                      ml: 0.5,
+                      textTransform: 'none',
+                      minWidth: 0,
+                      px: 1,
+                      py: 0.25,
+                      height: 28,
+                      lineHeight: 1,
+                      borderRadius: 2,
+                      color: 'brand.main',
+                      '&:hover': { bgcolor: alpha(theme.palette.brand.main, 0.08) }
+                    }}
+                  >
+                    Clear
+                  </Button>
                 </Stack>
               </Stack>
             </Paper>
