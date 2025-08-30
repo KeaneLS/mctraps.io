@@ -115,28 +115,7 @@ const Navbar: React.FC<NavbarProps> = ({ mode = 'light', onToggleTheme }) => {
             }}
           >
             {currentUser ? (
-              <Stack direction="row" spacing={1.25} alignItems="center">
-                <Avatar src={currentUser.photoURL ?? undefined} sx={{ width: 28, height: 28 }}>
-                  {currentUser.email?.[0]?.toUpperCase()}
-                </Avatar>
-                <Button
-                  variant="outlined"
-                  color="inherit"
-                  startIcon={<Logout />}
-                  onClick={logout}
-                  sx={{
-                    minWidth: 96,
-                    px: 1.5,
-                    height: 36,
-                    borderColor: surfaceBorder,
-                    bgcolor: alpha(theme.palette.light.main, 0.04),
-                    transition: 'transform 0.2s ease',
-                    '&:hover': { bgcolor: hoverBg, borderColor: alpha(theme.palette.light.main, 0.2), transform: 'translateY(-1px)' }
-                  }}
-                >
-                  Log out
-                </Button>
-              </Stack>
+              null
             ) : (
               <>
                 <Button
@@ -231,25 +210,28 @@ const Navbar: React.FC<NavbarProps> = ({ mode = 'light', onToggleTheme }) => {
               {particlesEnabled ? <BlurOn fontSize="small" /> : <BlurOff fontSize="small" />}
             </IconButton>
             {currentUser && (
-              <IconButton
+              <Button
                 color="inherit"
+                component={RouterLink}
+                to="/profile"
+                variant="outlined"
+                startIcon={
+                  <Avatar src={currentUser.photoURL ?? undefined} sx={{ width: 20, height: 20 }}>
+                    {currentUser.email?.[0]?.toUpperCase()}
+                  </Avatar>
+                }
                 sx={{
-                  width: 36,
+                  minWidth: 96,
+                  px: 1.5,
                   height: 36,
-                  borderRadius: 9,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  p: 0,
-                  border: `1px solid ${surfaceBorder}`,
+                  borderColor: surfaceBorder,
                   bgcolor: alpha(theme.palette.light.main, 0.04),
                   transition: 'transform 0.2s ease',
                   '&:hover': { bgcolor: hoverBg, borderColor: alpha(theme.palette.light.main, 0.2), transform: 'translateY(-1px)' }
                 }}
-                aria-label="Account"
               >
-                <AccountCircle fontSize="small" />
-              </IconButton>
+                Profile
+              </Button>
             )}
           </Stack>
         </Stack>

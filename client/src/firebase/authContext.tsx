@@ -1,6 +1,7 @@
 import React from 'react';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth } from './config';
+import { onAuthStateChanged, User, updateProfile } from 'firebase/auth';
+import { auth, db } from './config';
+import { doc, getDoc } from 'firebase/firestore';
 import { loginWithEmail, signupWithEmail, loginWithGoogle, logout as authLogout, resetPassword } from './authentication';
 
 export interface AuthContextValue {
@@ -11,6 +12,7 @@ export interface AuthContextValue {
   loginWithGoogle: () => Promise<User>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  reloadUser: () => Promise<void>;
 }
 
 const AuthContext = React.createContext<AuthContextValue | undefined>(undefined);
@@ -23,6 +25,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsub = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       setLoading(false);
+      if (user && !user.photoURL) {
+        (async () => {
+          try {
+            const snap = await getDoc(doc(db, 'users', user.uid));
+            const url = snap.exists() ? (snap.get('photoURL') as string | null) : null;
+            if (url) {
+              await updateProfile(user, { photoURL: url });
+              try { await user.reload(); } catch {}
+              setCurrentUser(auth.currentUser);
+            }
+          } catch {}
+        })();
+      }
     });
     return () => unsub();
   }, []);
@@ -47,6 +62,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     },
     resetPassword: async (email: string) => {
       await resetPassword(email);
+    },
+    reloadUser: async () => {
+      try {
+        await auth.currentUser?.reload();
+      } catch {}
+      setCurrentUser(auth.currentUser);
     },
   };
 

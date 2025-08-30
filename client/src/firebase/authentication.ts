@@ -7,6 +7,7 @@ import {
   signOut,
 } from "firebase/auth";
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { updateProfile } from "firebase/auth";
 
 async function ensureUserDocument(user: { uid: string; email: string | null; displayName: string | null; photoURL: string | null; }) {
   const userRef = doc(db, "users", user.uid);
@@ -36,6 +37,11 @@ export const loginWithEmail = async (email: string, password: string) => {
 
 export const loginWithGoogle = async () => {
   const result = await signInWithPopup(auth, googleProvider);
+  try {
+    if (result.user.photoURL) {
+      await updateProfile(result.user, { photoURL: result.user.photoURL });
+    }
+  } catch {}
   await ensureUserDocument(result.user);
   return result.user;
 };

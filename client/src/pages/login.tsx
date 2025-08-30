@@ -346,10 +346,11 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
       setInfo(null);
       if (isSignup) {
         await signup(email, password);
+        navigate('/profile');
       } else {
         await login(email, password);
+        navigate('/home');
       }
-      navigate('/home');
     } catch (err: any) {
       setError(formatAuthError(err));
       try {
@@ -370,7 +371,7 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
       setError(null);
       setInfo(null);
       await loginWithGoogle();
-      navigate('/home');
+      navigate(isSignup ? '/profile' : '/home');
     } catch (err: any) {
       setError(formatAuthError(err));
       try { console.log("Error signing in:", err?.message || err); } catch {}
