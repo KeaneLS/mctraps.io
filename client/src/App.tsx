@@ -4,6 +4,8 @@ import Landing from './pages/landing';
 import Login from './pages/login';
 import AccountPage from './pages/account';
 import CoalesceController from './components/CoalesceController';
+import ReviewTraps from './pages/review-traps';
+import DiscordCallback from './pages/discord-callback';
 
 const App: React.FC = () => {
   return (
@@ -16,6 +18,8 @@ const App: React.FC = () => {
         <Route path="/signup" element={<Login isSignup={true} />} />
         <Route path="/reset" element={<Login isSignup={false} isReset={true} />} />
         <Route path="/profile" element={<AccountPage />} />
+        <Route path="/review-traps" element={<ReviewTraps />} />
+        <Route path="/auth/discord/callback" element={<DiscordCallback />} />
       </Routes>
     </BrowserRouter>
   );

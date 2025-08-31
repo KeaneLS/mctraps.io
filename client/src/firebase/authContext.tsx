@@ -4,8 +4,10 @@ import { auth, db } from './config';
 import { doc, getDoc } from 'firebase/firestore';
 import { loginWithEmail, signupWithEmail, loginWithGoogle, logout as authLogout, resetPassword } from './authentication';
 
+export type AppUser = User & { admin?: boolean };
+
 export interface AuthContextValue {
-  currentUser: User | null;
+  currentUser: AppUser | null;
   loading: boolean;
   signup: (email: string, password: string) => Promise<User>;
   login: (email: string, password: string) => Promise<User>;
@@ -18,26 +20,34 @@ export interface AuthContextValue {
 const AuthContext = React.createContext<AuthContextValue | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = React.useState<User | null>(null);
+  const [currentUser, setCurrentUser] = React.useState<AppUser | null>(null);
   const [loading, setLoading] = React.useState<boolean>(true);
 
   React.useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
       setLoading(false);
-      if (user && !user.photoURL) {
-        (async () => {
-          try {
-            const snap = await getDoc(doc(db, 'users', user.uid));
-            const url = snap.exists() ? (snap.get('photoURL') as string | null) : null;
-            if (url) {
+      if (!user) {
+        setCurrentUser(null);
+        return;
+      }
+      (async () => {
+        try {
+          const snap = await getDoc(doc(db, 'users', user.uid));
+          const url = snap.exists() ? (snap.get('photoURL') as string | null) : null;
+          const admin = snap.exists() ? Boolean(snap.get('admin')) : undefined;
+          if (!user.photoURL && url) {
+            try {
               await updateProfile(user, { photoURL: url });
               try { await user.reload(); } catch {}
-              setCurrentUser(auth.currentUser);
-            }
-          } catch {}
-        })();
-      }
+            } catch {}
+          }
+          const refreshed = auth.currentUser ?? user;
+          const extended: AppUser = Object.assign(refreshed, { admin });
+          setCurrentUser(extended);
+        } catch {
+          setCurrentUser(user as AppUser);
+        }
+      })();
     });
     return () => unsub();
   }, []);

@@ -20,6 +20,7 @@ import Logo from '../components/icons/logo';
 import Navbar from '../components/Navbar';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../firebase/authContext';
+import { verifyDiscordCloud } from '../firebase/authentication';
 
 export interface LoginProps {
   isSignup?: boolean;
@@ -59,7 +60,6 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
     },
   });
   
-  // State
   const [showPassword, setShowPassword] = React.useState(false);
   const [isSignup, setIsSignup] = React.useState<boolean>(!!isSignupProp);
   const canToggleMode = typeof isSignupProp === 'undefined';
@@ -70,7 +70,8 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
   const [resetSent, setResetSent] = React.useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
   const navigate = useNavigate();
-  const { signup, login, loginWithGoogle, resetPassword } = useAuth();
+  const { signup, login, loginWithGoogle, resetPassword, reloadUser } = useAuth();
+  const verifyingDiscordRef = React.useRef<boolean>(false);
 
   React.useEffect(() => {
     if (typeof isSignupProp === 'boolean') {
@@ -88,7 +89,6 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
 
   const isResetMode = !!isReset;
 
-  // Place formatter before any early returns so it is initialized in embedded variant too
   function formatAuthError(err: any): string {
     const rawCode = (err?.code as string | undefined) || '';
     const code = rawCode.toLowerCase();
@@ -128,8 +128,13 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
     </SvgIcon>
   );
 
-  function openCenteredPopup(url: string, title: string, width = 500, height = 650) {
-    if (!url) return;
+  function openCenteredPopup(
+    url: string,
+    title: string,
+    width = 500,
+    height = 650
+  ) {
+    if (!url) return null;
     const dualScreenLeft = (window as any).screenLeft !== undefined ? (window as any).screenLeft : (window as any).screenX;
     const dualScreenTop = (window as any).screenTop !== undefined ? (window as any).screenTop : (window as any).screenY;
     const viewportWidth = window.innerWidth || document.documentElement.clientWidth || (window.screen ? window.screen.width : 0);
@@ -138,21 +143,132 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
     const top = Math.max(0, dualScreenTop + (viewportHeight - height) / 2);
     const features = `scrollbars=yes,width=${width},height=${height},top=${top},left=${left},toolbar=no,location=no,status=no,menubar=no,resizable=yes`;
     const popup = window.open(url, title, features);
-    if (!popup) {
-      window.location.href = url;
-      return;
-    }
+    if (!popup) return null;
     try { popup.focus(); } catch {}
+    return popup;
   }
 
-  function handleDiscordAuth() {
-    const url = (process.env.REACT_APP_DISCORD_LOGIN_LINK as string) || '';
-    if (!url) {
+  function base64UrlEncode(buffer: ArrayBufferLike): string {
+    const bytes = new Uint8Array(buffer);
+    let str = '';
+    for (let i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
+    return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  }
+
+  function generateRandomBytes(length: number): Uint8Array {
+    const array = new Uint8Array(length);
+    window.crypto.getRandomValues(array);
+    return array;
+  }
+
+  function generateState(): string {
+    return base64UrlEncode(generateRandomBytes(32).buffer);
+  }
+
+  function generateCodeVerifier(): string {
+    const allowed = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+    const bytes = generateRandomBytes(64);
+    let out = '';
+    for (let i = 0; i < bytes.length; i++) {
+      out += allowed.charAt(bytes[i] % allowed.length);
+    }
+    return out;
+  }
+
+  async function generateCodeChallenge(verifier: string): Promise<string> {
+    const enc = new TextEncoder();
+    const data = enc.encode(verifier);
+    const digest = await window.crypto.subtle.digest('SHA-256', data);
+    return base64UrlEncode(digest);
+  }
+
+  async function handleDiscordAuth() {
+    if (isSubmitting) return;
+    const clientId = (process.env.REACT_APP_DISCORD_CLIENT_ID as string) || '';
+    if (!clientId) {
       setError('Discord login is not configured.');
       return;
     }
-    openCenteredPopup(url, 'Discord Login');
+    const redirectUri = `${window.location.origin}/auth/discord/callback`;
+    const state = `auth:${isSignup ? 'signup' : 'login'}:${generateState()}`;
+    const codeVerifier = generateCodeVerifier();
+    let codeChallenge = '';
+    try {
+      codeChallenge = await generateCodeChallenge(codeVerifier);
+    } catch {
+      setError('Your browser does not support required crypto APIs.');
+      return;
+    }
+    try { window.localStorage.setItem('discord_oauth_state', state); } catch {}
+    try { window.localStorage.setItem('discord_code_verifier', codeVerifier); } catch {}
+    try { window.localStorage.setItem('discordAuthPending', '1'); } catch {}
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      response_type: 'code',
+      redirect_uri: redirectUri,
+      scope: 'identify email',
+      state,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+    });
+    const url = `https://discord.com/oauth2/authorize?${params.toString()}`;
+    const popup = openCenteredPopup(url, 'Discord Login');
+    if (!popup) {
+      setError('Your browser blocked the sign-in popup. Please allow popups.');
+      try { window.localStorage.removeItem('discordAuthPending'); } catch {}
+    }
   }
+
+  React.useEffect(() => {
+    let cancelled = false;
+    async function maybeVerifyAndInvite() {
+      if (verifyingDiscordRef.current) return;
+      const pending = (() => {
+        try { return window.localStorage.getItem('discordAuthPending') === '1'; } catch { return false; }
+      })();
+      if (!pending) return;
+      try {
+        verifyingDiscordRef.current = true;
+        const user = (await import('../firebase/config')).auth.currentUser;
+        if (!user) return;
+        await verifyDiscordCloud({
+          displayName: user.displayName,
+          email: user.email,
+          photoURL: user.photoURL,
+        });
+        try { window.localStorage.removeItem('discordAuthPending'); } catch {}
+        if (!cancelled) {
+          navigate('/profile');
+        }
+      } catch (e) {
+      } finally {
+        verifyingDiscordRef.current = false;
+      }
+    }
+    function onMessage(ev: MessageEvent) {
+      if (ev.origin !== window.location.origin) return;
+      const data: any = ev?.data;
+      if (data && data.type === 'discord-auth-complete') {
+        (async () => {
+          try { await reloadUser(); } catch {}
+          try {
+            const discordUsername: string | null | undefined = data?.profile?.discordUsername;
+            if (discordUsername) {
+              try { await verifyDiscordCloud({ discordUsername }); } catch {}
+            }
+            await maybeVerifyAndInvite();
+          } catch {}
+        })();
+      } else if (data && data.type === 'discord-auth-error') {
+        try { window.localStorage.removeItem('discordAuthPending'); } catch {}
+        setError('Discord sign-in failed. Please try again.');
+      }
+    }
+    window.addEventListener('message', onMessage);
+    const id = setInterval(maybeVerifyAndInvite, 600);
+    return () => { cancelled = true; clearInterval(id); window.removeEventListener('message', onMessage); };
+  }, [isSignup, navigate]);
 
   if (embedded) {
     return (
@@ -337,7 +453,6 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
     );
   }
 
-  // Handle form submit
   async function handleSubmit() {
     if (isSubmitting) return;
     try {
@@ -364,7 +479,6 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
     }
   }
 
-  // Handle Google login
   async function handleGoogleAuth() {
     if (isSubmitting) return;
     try {

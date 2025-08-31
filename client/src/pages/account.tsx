@@ -15,12 +15,13 @@ import { alpha } from '@mui/material/styles';
 import Navbar from '../components/Navbar';
 import { darkTheme, lightTheme, AppThemeMode } from '../theme';
 import { useAuth } from '../firebase/authContext';
-import { AccountCircle, FileUpload, Logout, Check } from '@mui/icons-material';
+import { AccountCircle, FileUpload, Logout, Check, VerifiedUser } from '@mui/icons-material';
 import { Link as RouterLink } from 'react-router-dom';
 import { updateProfile } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { app, db } from '../firebase/config';
+import { verifyDiscordCloud } from '../firebase/authentication';
 
 const AccountPage: React.FC = () => {
   const [mode, setMode] = React.useState<AppThemeMode>(() => {
@@ -51,6 +52,7 @@ const AccountPage: React.FC = () => {
   const [avatarPreview, setAvatarPreview] = React.useState<string | undefined>(initialPhoto);
   const [avatarFile, setAvatarFile] = React.useState<File | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [discordUsername, setDiscordUsername] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     setUsername(initialUsername);
@@ -59,6 +61,20 @@ const AccountPage: React.FC = () => {
     setAvatarFile(null);
     setIsDirty(false);
   }, [initialUsername, currentUser?.photoURL]);
+
+  // Listen to Firestore user doc for discordUsername
+  React.useEffect(() => {
+    if (!currentUser?.uid) {
+      setDiscordUsername(null);
+      return;
+    }
+    const ref = doc(db, 'users', currentUser.uid);
+    const unsub = onSnapshot(ref, (snap) => {
+      const data = snap.data() as { discordUsername?: string | null } | undefined;
+      setDiscordUsername(data?.discordUsername ?? null);
+    });
+    return () => { try { unsub(); } catch {} };
+  }, [currentUser?.uid]);
 
   React.useEffect(() => {
     const usernameDirty = username !== initialUsername;
@@ -151,13 +167,78 @@ const AccountPage: React.FC = () => {
     try { popup.focus(); } catch {}
   }
 
-  function handleDiscordAuth() {
-    const url = (process.env.REACT_APP_DISCORD_LOGIN_LINK as string) || '';
-    if (!url) {
-      return;
-    }
+  function base64UrlEncode(buffer: ArrayBufferLike): string {
+    const bytes = new Uint8Array(buffer);
+    let str = '';
+    for (let i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
+    return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  }
+  function generateRandomBytes(length: number): Uint8Array {
+    const array = new Uint8Array(length);
+    window.crypto.getRandomValues(array);
+    return array;
+  }
+  function generateState(): string {
+    return base64UrlEncode(generateRandomBytes(32).buffer);
+  }
+  function generateCodeVerifier(): string {
+    const allowed = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+    const bytes = generateRandomBytes(64);
+    let out = '';
+    for (let i = 0; i < bytes.length; i++) out += allowed.charAt(bytes[i] % allowed.length);
+    return out;
+  }
+  async function generateCodeChallenge(verifier: string): Promise<string> {
+    const enc = new TextEncoder();
+    const data = enc.encode(verifier);
+    const digest = await window.crypto.subtle.digest('SHA-256', data);
+    return base64UrlEncode(digest);
+  }
+
+  async function handleDiscordAuth() {
+    const clientId = (process.env.REACT_APP_DISCORD_CLIENT_ID as string) || '';
+    if (!clientId) return;
+    const redirectUri = `${window.location.origin}/auth/discord/callback`;
+    const state = `verify:${generateState()}`;
+    const codeVerifier = generateCodeVerifier();
+    let codeChallenge = '';
+    try {
+      codeChallenge = await generateCodeChallenge(codeVerifier);
+    } catch { return; }
+    try { window.localStorage.setItem('discord_oauth_state', state); } catch {}
+    try { window.localStorage.setItem('discord_code_verifier', codeVerifier); } catch {}
+    const params = new URLSearchParams({
+      client_id: clientId,
+      response_type: 'code',
+      redirect_uri: redirectUri,
+      scope: 'identify email',
+      state,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+    });
+    const url = `https://discord.com/oauth2/authorize?${params.toString()}`;
     openCenteredPopup(url, 'Discord Login');
   }
+
+  React.useEffect(() => {
+    function onMessage(ev: MessageEvent) {
+      if (ev.origin !== window.location.origin) return;
+      const data: any = ev?.data;
+      if (data && data.type === 'discord-auth-complete') {
+        const discordUsername: string | null | undefined = data?.profile?.discordUsername;
+        (async () => {
+          try {
+            if (discordUsername) {
+              await verifyDiscordCloud({ discordUsername });
+              await reloadUser();
+            }
+          } catch {}
+        })();
+      }
+    }
+    window.addEventListener('message', onMessage);
+    return () => { window.removeEventListener('message', onMessage); };
+  }, [reloadUser]);
 
   return (
     <ThemeProvider theme={currentTheme}>
@@ -182,9 +263,19 @@ const AccountPage: React.FC = () => {
         >
           <Stack spacing={3}>
             <Box>
-              <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                Your Profile
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                  Your Profile
+                </Typography>
+                {!!discordUsername && (
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    <VerifiedUser sx={{ color: currentTheme.palette.brand.main, height: 18, width: 18 }} />
+                    <Typography variant="body2" sx={{ color: currentTheme.palette.brand.main, fontWeight: 700 }}>
+                      Verified as {discordUsername}
+                    </Typography>
+                  </Stack>
+                )}
+              </Box>
               <Typography variant="body2" sx={{ opacity: 0.9 }}>
                 Update your username and avatar here.
               </Typography>
@@ -349,7 +440,7 @@ const AccountPage: React.FC = () => {
           )}
         </Paper>
 
-        {currentUser && (
+        {currentUser && !discordUsername && (
           <Paper
             elevation={0}
             sx={{
@@ -365,10 +456,13 @@ const AccountPage: React.FC = () => {
             }}
           >
             <Stack spacing={3}>
-              <Box>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Typography variant="h5" sx={{ fontWeight: 700 }}>
                   Verify with Discord
                 </Typography>
+                <VerifiedUser />
+                </Box>
                 <Typography variant="body2" sx={{ opacity: 0.9 }}>
                 When you verify with Discord, a checkmark appears beside your name and your Discord username is displayed.
                 </Typography>

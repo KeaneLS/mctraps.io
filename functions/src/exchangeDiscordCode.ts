@@ -1,0 +1,210 @@
+/* eslint-disable linebreak-style */
+import {onCall, HttpsError} from "firebase-functions/https";
+import * as functions from "firebase-functions";
+import {initializeApp, getApps} from "firebase-admin/app";
+import {getFirestore, FieldValue} from "firebase-admin/firestore";
+import {getAuth as getAdminAuth} from "firebase-admin/auth";
+import {defineSecret} from "firebase-functions/params";
+
+if (getApps().length === 0) {
+  initializeApp();
+}
+
+const db = getFirestore();
+
+const DISCORD_CLIENT_ID = defineSecret("DISCORD_CLIENT_ID");
+const DISCORD_CLIENT_SECRET = defineSecret("DISCORD_CLIENT_SECRET");
+
+type ExchangePayload = {
+  code?: string;
+  redirectUri?: string;
+  codeVerifier?: string;
+  mode?: "auth" | "verify";
+};
+
+export const exchangeDiscordCode = onCall({
+  secrets: [DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET],
+}, async (request) => {
+  const {
+    code,
+    redirectUri,
+    codeVerifier,
+    mode,
+  } = (request.data ?? {}) as ExchangePayload;
+
+  if (!code) {
+    throw new HttpsError("invalid-argument", "Missing Discord code.");
+  }
+  if (!redirectUri) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Missing redirectUri for Discord exchange."
+    );
+  }
+
+  const clientId = DISCORD_CLIENT_ID.value();
+  const clientSecret = DISCORD_CLIENT_SECRET.value();
+  if (!clientId || !clientSecret) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Discord client credentials are not configured."
+    );
+  }
+
+  let tokenJson: {access_token: string; token_type: string; scope?: string};
+  try {
+    const tokenRes = await fetch("https://discord.com/api/oauth2/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: redirectUri,
+        ...(codeVerifier ? {code_verifier: codeVerifier} : {}),
+      }),
+    });
+    if (!tokenRes.ok) {
+      const txt = await tokenRes.text();
+      functions.logger.error("discord token error", {
+        status: tokenRes.status,
+        body: txt,
+      });
+      throw new HttpsError(
+        "unauthenticated",
+        "Discord token exchange failed"
+      );
+    }
+    tokenJson = await tokenRes.json();
+  } catch (err: unknown) {
+    const message = (err as Error)?.message || String(err);
+    functions.logger.error("exchange token exception", {message});
+    throw err instanceof HttpsError ? err :
+      new HttpsError("internal", "Token exchange failed");
+  }
+
+  const accessToken = tokenJson.access_token;
+  if (!accessToken) {
+    throw new HttpsError(
+      "unauthenticated",
+      "Discord did not return an access token."
+    );
+  }
+
+  let userJson: {
+    id: string;
+    username?: string;
+    global_name?: string | null;
+    avatar?: string | null;
+    email?: string | null;
+  };
+  try {
+    const userRes = await fetch(
+      "https://discord.com/api/users/@me",
+      {headers: {Authorization: `Bearer ${accessToken}`}}
+    );
+    if (!userRes.ok) {
+      const txt = await userRes.text();
+      functions.logger.error("discord user fetch error", {
+        status: userRes.status,
+        body: txt,
+      });
+      throw new HttpsError(
+        "permission-denied",
+        "Failed to fetch Discord user"
+      );
+    }
+    userJson = await userRes.json();
+  } catch (err: unknown) {
+    const message = (err as Error)?.message || String(err);
+    functions.logger.error("user fetch exception", {message});
+    throw err instanceof HttpsError ? err :
+      new HttpsError("internal", "Discord user fetch failed");
+  }
+
+  const username = userJson.global_name || userJson.username || null;
+  const email = userJson.email || null;
+  const cdn = "https://cdn.discordapp.com/avatars";
+  const avatar: string | null = userJson.avatar ?
+    `${cdn}/${userJson.id}/${userJson.avatar}.png` :
+    null;
+
+  if (mode === "verify") {
+    return {
+      profile: {
+        displayName: username,
+        email,
+        photoURL: avatar,
+        discordUsername: username,
+      },
+    };
+  }
+
+  const adminAuth = getAdminAuth();
+  let uid: string;
+  if (email) {
+    try {
+      const existing = await adminAuth.getUserByEmail(email);
+      uid = existing.uid;
+    } catch {
+      const created = await adminAuth.createUser({
+        email,
+        displayName: username ?? undefined,
+        photoURL: avatar ?? undefined,
+        emailVerified: true,
+      });
+      uid = created.uid;
+    }
+  } else {
+    const importResult = await adminAuth.importUsers([
+      {uid: `discord:${userJson.id}`},
+    ]);
+    uid = `discord:${userJson.id}`;
+    if (importResult.failureCount > 0) {
+      // ignore, user may already exist
+    }
+  }
+
+  try {
+    const userRef = db.collection("users").doc(uid);
+    const snap = await userRef.get();
+    if (!snap.exists) {
+      await userRef.set({
+        admin: false,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        discordUsername: username ?? null,
+        displayName: username ?? null,
+        email: email ?? null,
+        photoURL: avatar ?? null,
+      }, {merge: true});
+    } else {
+      await userRef.set({
+        updatedAt: FieldValue.serverTimestamp(),
+        discordUsername: username ?? null,
+        displayName: username ?? null,
+        email: email ?? null,
+        photoURL: avatar ?? null,
+      }, {merge: true});
+    }
+  } catch (err: unknown) {
+    const message = (err as Error)?.message || String(err);
+    functions.logger.error("firestore update exception", {message});
+  }
+
+  const customToken = await adminAuth.createCustomToken(uid);
+  return {
+    customToken,
+    profile: {
+      displayName: username,
+      email,
+      photoURL: avatar,
+      discordUsername: username,
+    },
+  };
+});
+
+
