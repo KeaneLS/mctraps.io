@@ -1,7 +1,8 @@
 /* eslint-disable linebreak-style */
-import {onCall} from "firebase-functions/https";
+import {onCall, HttpsError} from "firebase-functions/https";
 import {initializeApp, getApps} from "firebase-admin/app";
 import {getFirestore} from "firebase-admin/firestore";
+import {enforceRateLimit} from "./rateLimit";
 
 if (getApps().length === 0) {
   initializeApp();
@@ -70,6 +71,14 @@ function getTierLetterFromAverage(avg: number): TierLetter {
 }
 
 export const searchTraps = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError(
+      "unauthenticated",
+      "Sign in (anonymously) before calling searchTraps."
+    );
+  }
+  await enforceRateLimit(uid, "searchTraps", 5, 60); // 5 FOR TESTING
   const payload = (request.data ?? {}) as FilterPayload;
 
   const trapsRef = db.collection("traps");

@@ -202,6 +202,7 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
     try { window.localStorage.setItem('discord_oauth_state', state); } catch {}
     try { window.localStorage.setItem('discord_code_verifier', codeVerifier); } catch {}
     try { window.localStorage.setItem('discordAuthPending', '1'); } catch {}
+    try { window.localStorage.setItem('discordAuthIntent', isSignup ? 'signup' : 'login'); } catch {}
 
     const params = new URLSearchParams({
       client_id: clientId,
@@ -227,19 +228,26 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
       const pending = (() => {
         try { return window.localStorage.getItem('discordAuthPending') === '1'; } catch { return false; }
       })();
-      if (!pending) return;
+      const ready = (() => {
+        try { return window.localStorage.getItem('discordAuthReady') === '1'; } catch { return false; }
+      })();
+      if (!pending || !ready) return;
       try {
         verifyingDiscordRef.current = true;
         const user = (await import('../firebase/config')).auth.currentUser;
-        if (!user) return;
+        if (!user || user.isAnonymous) return;
         await verifyDiscordCloud({
           displayName: user.displayName,
           email: user.email,
           photoURL: user.photoURL,
         });
+        let intent: string | null = null;
+        try { intent = window.localStorage.getItem('discordAuthIntent'); } catch {}
         try { window.localStorage.removeItem('discordAuthPending'); } catch {}
+        try { window.localStorage.removeItem('discordAuthIntent'); } catch {}
+        try { window.localStorage.removeItem('discordAuthReady'); } catch {}
         if (!cancelled) {
-          navigate('/profile');
+          navigate(intent === 'signup' ? '/profile' : '/home');
         }
       } catch (e) {
       } finally {
@@ -251,6 +259,7 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
       const data: any = ev?.data;
       if (data && data.type === 'discord-auth-complete') {
         (async () => {
+          try { window.localStorage.setItem('discordAuthReady', '1'); } catch {}
           try { await reloadUser(); } catch {}
           try {
             const discordUsername: string | null | undefined = data?.profile?.discordUsername;
@@ -262,6 +271,8 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
         })();
       } else if (data && data.type === 'discord-auth-error') {
         try { window.localStorage.removeItem('discordAuthPending'); } catch {}
+        try { window.localStorage.removeItem('discordAuthIntent'); } catch {}
+        try { window.localStorage.removeItem('discordAuthReady'); } catch {}
         setError('Discord sign-in failed. Please try again.');
       }
     }
@@ -461,9 +472,11 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
       setInfo(null);
       if (isSignup) {
         await signup(email, password);
+        try { await reloadUser(); } catch {}
         navigate('/profile');
       } else {
         await login(email, password);
+        try { await reloadUser(); } catch {}
         navigate('/home');
       }
     } catch (err: any) {
@@ -485,6 +498,7 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
       setError(null);
       setInfo(null);
       await loginWithGoogle();
+      try { await reloadUser(); } catch {}
       navigate(isSignup ? '/profile' : '/home');
     } catch (err: any) {
       setError(formatAuthError(err));

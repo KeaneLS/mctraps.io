@@ -5,6 +5,14 @@ import {
   signInWithPopup,
   sendPasswordResetEmail,
   signOut,
+  onAuthStateChanged,
+  signInAnonymously,
+  User,
+  linkWithPopup,
+  linkWithCredential,
+  EmailAuthProvider,
+  signInWithCredential,
+  getIdToken,
 } from "firebase/auth";
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { updateProfile } from "firebase/auth";
@@ -33,7 +41,25 @@ async function ensureUserDocument(user: { uid: string; email: string | null; dis
 }
 
 export const signupWithEmail = async (email: string, password: string) => {
+  const current = auth.currentUser;
+  if (current && current.isAnonymous) {
+    try {
+      const cred = EmailAuthProvider.credential(email, password);
+      const linked = await linkWithCredential(current, cred);
+      try { await linked.user.reload(); } catch {}
+      await ensureUserDocument(linked.user);
+      return linked.user;
+    } catch (err: any) {
+      if (err?.code === "auth/email-already-in-use") {
+        const signedIn = await signInWithEmailAndPassword(auth, email, password);
+        try { await signedIn.user.reload(); } catch {}
+        return signedIn.user;
+      }
+      throw err;
+    }
+  }
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+  try { await userCredential.user.reload(); } catch {}
   await ensureUserDocument(userCredential.user);
   return userCredential.user;
 };
@@ -44,10 +70,51 @@ export const loginWithEmail = async (email: string, password: string) => {
 };
 
 export const loginWithGoogle = async () => {
+  const current = auth.currentUser;
+  if (current && current.isAnonymous) {
+    try {
+      const linked = await linkWithPopup(current, googleProvider);
+      try { await linked.user.reload(); } catch {}
+      try {
+        const updates: { displayName?: string; photoURL?: string } = {};
+        if (!linked.user.displayName && linked.user.providerData?.[0]?.displayName) {
+          updates.displayName = linked.user.providerData[0]!.displayName!;
+        }
+        if (!linked.user.photoURL && linked.user.providerData?.[0]?.photoURL) {
+          updates.photoURL = linked.user.providerData[0]!.photoURL!;
+        }
+        if (updates.displayName || updates.photoURL) {
+          await updateProfile(linked.user, updates);
+          try { await linked.user.reload(); } catch {}
+        }
+      } catch {}
+      await ensureUserDocument(linked.user);
+      return linked.user;
+    } catch (err: any) {
+      // If the Google account already exists, sign into it instead
+      if (err?.code === "auth/credential-already-in-use" ||
+          err?.code === "auth/email-already-in-use") {
+        const signed = await signInWithPopup(auth, googleProvider);
+        try { await signed.user.reload(); } catch {}
+        await ensureUserDocument(signed.user);
+        return signed.user;
+      }
+      throw err;
+    }
+  }
   const result = await signInWithPopup(auth, googleProvider);
+  try { await result.user.reload(); } catch {}
   try {
-    if (result.user.photoURL) {
-      await updateProfile(result.user, { photoURL: result.user.photoURL });
+    const updates: { displayName?: string; photoURL?: string } = {};
+    if (!result.user.displayName && result.user.providerData?.[0]?.displayName) {
+      updates.displayName = result.user.providerData[0]!.displayName!;
+    }
+    if (!result.user.photoURL && result.user.providerData?.[0]?.photoURL) {
+      updates.photoURL = result.user.providerData[0]!.photoURL!;
+    }
+    if (updates.displayName || updates.photoURL) {
+      await updateProfile(result.user, updates);
+      try { await result.user.reload(); } catch {}
     }
   } catch {}
   await ensureUserDocument(result.user);
@@ -67,3 +134,24 @@ export const verifyDiscordCloud = async (data: { displayName?: string | null; em
   const res = await callable(data);
   return res.data as unknown;
 };
+
+async function waitForAuthInit(): Promise<User | null> {
+  if (auth.currentUser) return auth.currentUser;
+  return await new Promise((resolve) => {
+    const unsub = onAuthStateChanged(auth, (u) => {
+      unsub();
+      resolve(u);
+    });
+  });
+}
+
+export async function ensureAnonymousUser(): Promise<User> {
+  const existing = await waitForAuthInit();
+  if (existing) {
+    try { await getIdToken(existing, true); } catch {}
+    return existing;
+  }
+  const cred = await signInAnonymously(auth);
+  try { await getIdToken(cred.user, true); } catch {}
+  return cred.user;
+}

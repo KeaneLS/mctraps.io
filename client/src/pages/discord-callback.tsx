@@ -2,6 +2,7 @@ import React from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { signInWithCustomToken } from 'firebase/auth';
 import { functions, auth } from '../firebase/config';
+import { ensureAnonymousUser } from '../firebase/authentication';
 
 const DiscordCallback: React.FC = () => {
   const hasRunRef = React.useRef(false);
@@ -54,6 +55,7 @@ const DiscordCallback: React.FC = () => {
       try { window.localStorage.removeItem('discord_code_verifier'); } catch {}
 
       try {
+        try { await ensureAnonymousUser(); } catch {}
         const redirectUri = `${window.location.origin}/auth/discord/callback`;
         const exchange = httpsCallable(functions, 'exchangeDiscordCode');
         const res: any = await exchange({ code, redirectUri, codeVerifier, mode });
@@ -63,7 +65,31 @@ const DiscordCallback: React.FC = () => {
         if (mode === 'auth') {
           if (customToken) {
             await signInWithCustomToken(auth, customToken);
+            try { await auth.currentUser?.reload(); } catch {}
+            try {
+              const { getIdToken } = await import('firebase/auth');
+              if (auth.currentUser) {
+                await getIdToken(auth.currentUser, true);
+              }
+            } catch {}
           }
+          try {
+            const user = auth.currentUser;
+            if (user && (profile?.displayName || profile?.photoURL)) {
+              const { updateProfile } = await import('firebase/auth');
+              const updates: { displayName?: string; photoURL?: string } = {};
+              if (!user.displayName && profile?.displayName) {
+                updates.displayName = profile.displayName;
+              }
+              if (!user.photoURL && profile?.photoURL) {
+                updates.photoURL = profile.photoURL;
+              }
+              if (updates.displayName || updates.photoURL) {
+                await updateProfile(user, updates);
+                try { await user.reload(); } catch {}
+              }
+            }
+          } catch {}
           try {
             const verify = httpsCallable(functions, 'verifyDiscord');
             await verify({
@@ -82,13 +108,13 @@ const DiscordCallback: React.FC = () => {
 
         const payload = { type: 'discord-auth-complete', code, state: rawState, profile };
         try { window.opener && window.opener.postMessage(payload, window.location.origin); } catch {}
-        if (mode === 'verify' || authAction === 'signup') {
+        if (mode === 'verify') {
           try {
             window.location.replace('https://discord.gg/jNanZrV4xj');
             return;
           } catch {}
         }
-        setTimeout(() => { try { window.close(); } catch {} }, 100);
+        setTimeout(() => { try { window.close(); } catch {} }, 300);
       } catch (err: any) {
         try { sessionStorage.removeItem(processedKey); } catch {}
         try {

@@ -1,6 +1,7 @@
 import { db, functions } from "./config";
 import { collection, addDoc, getDocs, QueryDocumentSnapshot, DocumentData } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
+import { ensureAnonymousUser } from "./authentication";
 
 function getYouTubeThumbnail(youtubeUrl: string): string {
   let videoId: string;
@@ -103,9 +104,12 @@ export async function writeTrap(
 }
 
 export async function readTraps() {
-  const querySnapshot = await getDocs(collection(db, "traps"));
-  const traps = querySnapshot.docs.map((doc: QueryDocumentSnapshot<DocumentData>) => ({ id: doc.id, ...doc.data() }));
-  console.log("Read the following traps:", traps);
+  // Is now just searchTraps but with an empty payload (so we can apply the rate limit)
+  await ensureAnonymousUser();
+  const callable = httpsCallable(functions, 'searchTraps');
+  const res = await callable({});
+  const traps = (res.data as any[]) || [];
+  try { console.log("Read the following traps:", traps); } catch {}
   return traps;
 }
 
@@ -122,6 +126,7 @@ export type FilterPayload = {
 };
 
 export async function searchTraps(payload: FilterPayload) {
+  await ensureAnonymousUser();
   const callable = httpsCallable(functions, 'searchTraps');
   const res = await callable(payload);
   return res.data as any[];

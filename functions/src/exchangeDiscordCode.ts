@@ -5,6 +5,7 @@ import {initializeApp, getApps} from "firebase-admin/app";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import {getAuth as getAdminAuth} from "firebase-admin/auth";
 import {defineSecret} from "firebase-functions/params";
+import {enforceRateLimit} from "./rateLimit";
 
 if (getApps().length === 0) {
   initializeApp();
@@ -25,6 +26,15 @@ type ExchangePayload = {
 export const exchangeDiscordCode = onCall({
   secrets: [DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET],
 }, async (request) => {
+  const callerUid = request.auth?.uid;
+  if (callerUid) {
+    await enforceRateLimit(
+      callerUid,
+      "exchangeDiscordCode",
+      5, // 5 FOR TESTING
+      60
+    );
+  }
   const {
     code,
     redirectUri,
@@ -144,8 +154,30 @@ export const exchangeDiscordCode = onCall({
   }
 
   const adminAuth = getAdminAuth();
-  let uid: string;
-  if (email) {
+  let uid: string | null = null;
+  const discordId = userJson.id;
+  const linkRef = db.collection("discordLinks").doc(discordId);
+  const linkSnap = await linkRef.get();
+
+  if (linkSnap.exists) {
+    const mapped = linkSnap.get("uid") as string | undefined;
+    if (mapped) {
+      uid = mapped;
+    }
+  }
+
+  if (!uid && callerUid) {
+    uid = callerUid;
+    try {
+      await linkRef.set({uid, createdAt: FieldValue.serverTimestamp()},
+        {merge: true});
+    } catch (err: unknown) {
+      const message = (err as Error)?.message || String(err);
+      functions.logger.warn("discord linkRef set (caller) failed", {message});
+    }
+  }
+
+  if (!uid && email) {
     try {
       const existing = await adminAuth.getUserByEmail(email);
       uid = existing.uid;
@@ -158,13 +190,65 @@ export const exchangeDiscordCode = onCall({
       });
       uid = created.uid;
     }
-  } else {
-    const importResult = await adminAuth.importUsers([
-      {uid: `discord:${userJson.id}`},
-    ]);
-    uid = `discord:${userJson.id}`;
-    if (importResult.failureCount > 0) {
-      // ignore, user may already exist
+    try {
+      await linkRef.set({uid, createdAt: FieldValue.serverTimestamp()},
+        {merge: true});
+    } catch (err: unknown) {
+      const message = (err as Error)?.message || String(err);
+      functions.logger.warn("discord linkRef set (email) failed", {message});
+    }
+  }
+
+  if (!uid) {
+    const stableUid = `discord:${discordId}`;
+    try {
+      const importResult = await adminAuth.importUsers([
+        {uid: stableUid},
+      ]);
+      if (importResult.failureCount > 0) {
+      }
+    } catch (err: unknown) {
+      const message = (err as Error)?.message || String(err);
+      functions.logger.warn("discord importUsers failed", {message});
+    }
+    uid = stableUid;
+    try {
+      await linkRef.set({uid, createdAt: FieldValue.serverTimestamp()},
+        {merge: true});
+    } catch (err: unknown) {
+      const message = (err as Error)?.message || String(err);
+      functions.logger.warn("discord linkRef set (fallback) failed", {message});
+    }
+  }
+
+  try {
+    const updates: {
+      displayName?: string;
+      photoURL?: string;
+      email?: string;
+      emailVerified?: boolean;
+    } = {};
+    if (username) updates.displayName = username;
+    if (avatar) updates.photoURL = avatar;
+    if (email) {
+      updates.email = email;
+      updates.emailVerified = true;
+    }
+    if (Object.keys(updates).length > 0) {
+      await adminAuth.updateUser(uid, updates);
+    }
+  } catch (err: unknown) {
+    const typed = err as {
+      errorInfo?: {code?: string};
+      code?: string;
+    };
+    const code = typed?.errorInfo?.code || typed?.code;
+    const message = (err as Error)?.message || String(err);
+    if (code !== "auth/email-already-exists") {
+      functions.logger.warn(
+        "updateUser failed",
+        {code, message, uid}
+      );
     }
   }
 

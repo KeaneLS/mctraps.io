@@ -3,6 +3,7 @@ import {onCall, HttpsError} from "firebase-functions/https";
 import {initializeApp, getApps} from "firebase-admin/app";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import {getAuth as getAdminAuth} from "firebase-admin/auth";
+import {enforceRateLimit} from "./rateLimit";
 
 if (getApps().length === 0) {
   initializeApp();
@@ -26,6 +27,7 @@ export const verifyDiscord = onCall(async (request) => {
       "User must be authenticated to verify Discord."
     );
   }
+  await enforceRateLimit(uid, "verifyDiscord", 5, 60); // 5 FOR TESTING
 
   const {
     displayName,
@@ -35,13 +37,17 @@ export const verifyDiscord = onCall(async (request) => {
   } = (request.data ?? {}) as VerifyPayload;
 
   let discordUsername = providedUsername ?? displayName ?? null;
+  const authToken = (request.auth as unknown as {
+    token?: {firebase?: {sign_in_provider?: string}};
+  }) || {};
+  const signInProvider = authToken?.token?.firebase?.sign_in_provider;
+  const isAnonymous = signInProvider === "anonymous";
   if (!discordUsername) {
     try {
       const adminAuth = getAdminAuth();
       const rec = await adminAuth.getUser(uid);
       discordUsername = rec.displayName ?? null;
     } catch {
-      // ignore, will remain null
     }
   }
 
@@ -55,8 +61,23 @@ export const verifyDiscord = onCall(async (request) => {
     if (discordUsername !== null) {
       updates.discordUsername = discordUsername;
     }
+    const cur = (snap.data() as {
+      displayName?: string|null;
+      email?: string|null;
+      photoURL?: string|null;
+    }) || {};
+    if (!cur.displayName && displayName) updates.displayName = displayName;
+    if (!cur.email && email) updates.email = email;
+    if (!cur.photoURL && photoURL) updates.photoURL = photoURL;
     await userRef.set(updates, {merge: true});
     return {status: "updated", uid};
+  }
+
+  if (
+    isAnonymous ||
+    (!displayName && !email && !photoURL && !discordUsername)
+  ) {
+    return {status: "skipped", reason: "no_profile_or_anonymous", uid};
   }
 
   await userRef.set({
@@ -64,7 +85,10 @@ export const verifyDiscord = onCall(async (request) => {
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
     discordUsername: discordUsername ?? null,
-    displayName: discordUsername ?? displayName ?? null,
+    displayName: ((): string | null => {
+      const name = discordUsername ?? displayName ?? null;
+      return name;
+    })(),
     email: email ?? null,
     photoURL: photoURL ?? null,
   }, {merge: true});

@@ -62,7 +62,6 @@ const AccountPage: React.FC = () => {
     setIsDirty(false);
   }, [initialUsername, currentUser?.photoURL]);
 
-  // Listen to Firestore user doc for discordUsername
   React.useEffect(() => {
     if (!currentUser?.uid) {
       setDiscordUsername(null);
