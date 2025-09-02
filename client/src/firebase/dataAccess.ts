@@ -211,7 +211,7 @@ export type CommentEntity = {
   likeCount?: number;
   dislikeCount?: number;
   score?: number;
-  status?: 'visible' | 'deleted' | 'hidden';
+  status?: 'visible' | 'edited' | 'deleted' | 'hidden';
 };
 
 export type PaginatedComments = {
@@ -267,8 +267,8 @@ export async function readTrapComments(
         ? createdAt
         : '';
     const rawStatus = data.status;
-    const normalizedStatus: 'visible' | 'deleted' | 'hidden' | undefined =
-      rawStatus === 'visible' || rawStatus === 'deleted' || rawStatus === 'hidden'
+    const normalizedStatus: 'visible' | 'edited' | 'deleted' | 'hidden' | undefined =
+      rawStatus === 'visible' || rawStatus === 'edited' || rawStatus === 'deleted' || rawStatus === 'hidden'
         ? rawStatus
         : undefined;
     const entity: CommentEntity = {
@@ -315,8 +315,8 @@ export async function readTrapComments(
           : '';
       const rawStatus = data.status;
       const normalizedStatus:
-        'visible' | 'deleted' | 'hidden' | undefined =
-          rawStatus === 'visible' || rawStatus === 'deleted' ||
+        'visible' | 'edited' | 'deleted' | 'hidden' | undefined =
+          rawStatus === 'visible' || rawStatus === 'edited' || rawStatus === 'deleted' ||
           rawStatus === 'hidden'
             ? rawStatus
             : undefined;
@@ -439,4 +439,21 @@ export async function readUserCommentVotes(
   });
   await Promise.all(tasks);
   return results;
+}
+
+export async function editComment(
+  trapId: string,
+  commentId: string,
+  body: string
+): Promise<void> {
+  const callable = httpsCallable(functions, 'editComment');
+  await callable({ trapId, commentId, body });
+}
+
+export async function softDeleteComment(
+  trapId: string,
+  commentId: string
+): Promise<void> {
+  const callable = httpsCallable(functions, 'softDeleteComment');
+  await callable({ trapId, commentId });
 }

@@ -74,7 +74,7 @@ export const addComment = onCall(async (request) => {
         rootId = pdata?.threadId || parentSnap.id;
       }
 
-      depth = 1; 
+      depth = 1;
       threadId = rootId;
       effectiveParentId = rootId;
 

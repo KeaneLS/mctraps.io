@@ -4,6 +4,8 @@ import {verifyDiscord} from "./verifyDiscord";
 import {exchangeDiscordCode} from "./exchangeDiscordCode";
 import {addComment} from "./addComment";
 import {setCommentVote} from "./setCommentVote";
+import {editComment} from "./editComment";
+import {softDeleteComment} from "./softDeleteComment";
 if (getApps().length === 0) {
   initializeApp();
 }
@@ -13,3 +15,5 @@ export {verifyDiscord};
 export {exchangeDiscordCode};
 export {addComment};
 export {setCommentVote};
+export {editComment};
+export {softDeleteComment};

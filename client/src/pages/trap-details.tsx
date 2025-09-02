@@ -15,7 +15,7 @@ import {
 import { alpha } from '@mui/material/styles';
 import Navbar from '../components/Navbar';
 import { darkTheme, lightTheme, AppThemeMode } from '../theme';
-import { readTrapById, readTrapComments, PaginatedComments, resolveUserProfiles, UserProfile, addComment, setCommentVote, readUserCommentVotes } from '../firebase/dataAccess';
+import { readTrapById, readTrapComments, PaginatedComments, resolveUserProfiles, UserProfile, addComment, setCommentVote, readUserCommentVotes, editComment, softDeleteComment } from '../firebase/dataAccess';
 import Avatar from '@mui/material/Avatar';
 import InputBase from '@mui/material/InputBase';
 import { useAuth } from '../firebase/authContext';
@@ -26,6 +26,9 @@ import ThumbDownAltOutlined from '@mui/icons-material/ThumbDownAltOutlined';
 import ThumbUpAlt from '@mui/icons-material/ThumbUpAlt';
 import ThumbDownAlt from '@mui/icons-material/ThumbDownAlt';
 import ReplyOutlined from '@mui/icons-material/ReplyOutlined';
+import MoreVert from '@mui/icons-material/MoreVert';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 
 function getTierFromAverage(avg?: number) {
   const rounded = Math.max(0, Math.min(6, Math.round(avg ?? 0)));
@@ -71,9 +74,99 @@ const TrapDetailsPage: React.FC = () => {
   const [profiles, setProfiles] = React.useState<Record<string, UserProfile>>({});
   const [newComment, setNewComment] = React.useState<string>("");
   const [replyDrafts, setReplyDrafts] = React.useState<Record<string, string>>({});
+  const [editingDrafts, setEditingDrafts] = React.useState<Record<string, string>>({});
+  const [menuAnchors, setMenuAnchors] = React.useState<Record<string, HTMLElement | null>>({});
   const [userVotes, setUserVotes] = React.useState<Record<string, 1 | -1 | 0>>({});
   const { currentUser } = useAuth();
   const [composerProfile, setComposerProfile] = React.useState<UserProfile | null>(null);
+  const ensureComposerProfileInMap = React.useCallback(() => {
+    if (!currentUser) return;
+    const uid = currentUser.uid;
+    setProfiles((prev) => {
+      if (prev[uid]) return prev;
+      const entry: UserProfile = {
+        displayName: composerProfile?.displayName || currentUser.displayName || null,
+        photoURL: composerProfile?.photoURL || currentUser.photoURL || null,
+        discordUsername: composerProfile?.discordUsername || null,
+      };
+      return { ...prev, [uid]: entry };
+    });
+  }, [currentUser, composerProfile]);
+
+  const addOptimisticComment = React.useCallback((body: string, parentTopId?: string) => {
+    if (!currentUser) return null;
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const uid = currentUser.uid;
+    const nowIso = new Date().toISOString();
+    const isReply = !!parentTopId;
+    const entity: any = {
+      id: tempId,
+      authorId: uid,
+      body,
+      createdAt: nowIso,
+      parentId: isReply ? parentTopId : null,
+      threadId: isReply ? parentTopId : tempId,
+      depth: isReply ? 1 : 0,
+      replyCount: 0,
+      likeCount: 0,
+      dislikeCount: 0,
+      score: 0,
+      status: 'visible',
+    };
+    setComments((prev) => {
+      const nextById = { ...prev.byId, [tempId]: entity } as any;
+      let nextIds = [...prev.ids];
+      if (isReply) {
+        nextIds.push(tempId);
+      } else {
+        const getScore = (c: any) => (typeof c?.score === 'number'
+          ? c.score
+          : (Number(c?.likeCount || 0) - Number(c?.dislikeCount || 0)));
+        const topIds = prev.ids.filter((cid) => (prev.byId[cid]?.depth ?? 0) === 0);
+        const others = prev.ids.filter((cid) => (prev.byId[cid]?.depth ?? 0) !== 0);
+        const combinedById = { ...nextById } as any;
+        const sortedTop = [...topIds, tempId].sort((a, b) => {
+          const ca = a === tempId ? entity : combinedById[a];
+          const cb = b === tempId ? entity : combinedById[b];
+          const sa = getScore(ca);
+          const sb = getScore(cb);
+          if (sa !== sb) return sb - sa; // score desc
+          const ta = new Date(ca.createdAt || 0).getTime();
+          const tb = new Date(cb.createdAt || 0).getTime();
+          return ta - tb; // createdAt asc
+        });
+        nextIds = [...sortedTop, ...others];
+      }
+      return { ...prev, byId: nextById, ids: nextIds } as PaginatedComments;
+    });
+    setTrap((prev: any) => prev ? ({ ...prev, commentCount: (Number(prev.commentCount || 0) + 1) }) : prev);
+    ensureComposerProfileInMap();
+    return tempId;
+  }, [currentUser, ensureComposerProfileInMap]);
+
+  const replaceOptimisticCommentId = React.useCallback((tempId: string, realId: string, threadId?: string) => {
+    setComments((prev) => {
+      const temp = prev.byId[tempId];
+      if (!temp) return prev;
+      const updated = { ...temp, id: realId, threadId: threadId || temp.threadId } as any;
+      const nextById = { ...prev.byId } as any;
+      delete nextById[tempId];
+      nextById[realId] = updated;
+      const nextIds = prev.ids.map((id) => id === tempId ? realId : id);
+      return { ...prev, byId: nextById, ids: nextIds } as PaginatedComments;
+    });
+  }, []);
+
+  const removeOptimisticComment = React.useCallback((tempId: string) => {
+    setComments((prev) => {
+      if (!prev.byId[tempId]) return prev;
+      const nextById = { ...prev.byId } as any;
+      delete nextById[tempId];
+      const nextIds = prev.ids.filter((id) => id !== tempId);
+      return { ...prev, byId: nextById, ids: nextIds } as PaginatedComments;
+    });
+    setTrap((prev: any) => prev ? ({ ...prev, commentCount: Math.max(0, Number(prev.commentCount || 0) - 1) }) : prev);
+  }, []);
   const applyVoteOptimistic = React.useCallback((commentId: string, previous: 1 | 0 | -1, next: 1 | 0 | -1) => {
     const delta = (next - previous);
     setUserVotes((prev) => ({ ...prev, [commentId]: next }));
@@ -392,16 +485,20 @@ const TrapDetailsPage: React.FC = () => {
                   variant="outlined"
                   color="brand"
                   disabled={!currentUser || !(composerProfile?.displayName || currentUser?.displayName) || !newComment.trim()}
-                  onClick={async () => {
+                  onClick={() => {
                     if (!trapId) return;
                     const body = newComment.trim();
                     if (!body) return;
-                    try {
-                      await addComment({ trapId: trapId, body });
-                      setNewComment("");
-                      setTrap((prev: any) => prev ? ({ ...prev, commentCount: (Number(prev.commentCount || 0) + 1) }) : prev);
-                      await loadComments({ reset: true });
-                    } catch {}
+                    const tempId = addOptimisticComment(body);
+                    setNewComment("");
+                    if (!tempId) return;
+                    addComment({ trapId: trapId, body })
+                      .then((res) => {
+                        replaceOptimisticCommentId(tempId, res.id, res.threadId);
+                      })
+                      .catch(() => {
+                        removeOptimisticComment(tempId);
+                      });
                   }}
                   sx={{
                     textTransform: 'none',
@@ -449,12 +546,17 @@ const TrapDetailsPage: React.FC = () => {
                 return (
                   <Box key={topId} sx={{ p: 1, borderRadius: 1.5, bgcolor: alpha(currentTheme.palette.light.main, 0.04), border: `1px solid ${surfaceBorder}` }}>
                     <Stack direction="row" alignItems="center" spacing={1}>
-                      <Avatar src={topProfile?.photoURL || undefined} sx={{ width: 28, height: 28 }} />
+                      <Avatar src={(top?.status === 'deleted') ? undefined : (topProfile?.photoURL || undefined)} sx={{ width: 28, height: 28 }} />
                       <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flex: 1, minWidth: 0 }}>
                         <Typography variant="body1" noWrap>
-                          {topProfile?.displayName || 'Anonymous'}
+                          {(top?.status === 'deleted') ? '(deleted)' : (topProfile?.displayName || 'Anonymous')}{(top?.status === 'edited') ? ' ' : ''}
+                          {(top?.status === 'edited') ? (
+                            <Typography component="span" variant="caption" sx={{ opacity: 0.7 }}>
+                              (edited)
+                            </Typography>
+                          ) : null}
                         </Typography>
-                        {topProfile?.discordUsername && (
+                        {(top?.status !== 'deleted' && topProfile?.discordUsername) && (
                           <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0 }}>
                             <VerifiedUser sx={{ color: currentTheme.palette.brand.main, height: 18, width: 18 }} />
                             <Typography variant="body1" sx={{ color: currentTheme.palette.brand.main, fontWeight: 700 }} noWrap>
@@ -463,9 +565,111 @@ const TrapDetailsPage: React.FC = () => {
                           </Stack>
                         )}
                       </Stack>
-                      <Typography variant="body1" sx={{ opacity: 0.7 }}>{new Date(top.createdAt).toLocaleString()}</Typography>
+                      {top.status !== 'deleted' && (
+                        <Typography variant="body1" sx={{ opacity: 0.7 }}>
+                          {new Date(top.createdAt).toLocaleString()}
+                        </Typography>
+                      )}
+                      {currentUser && top.authorId === currentUser.uid && top.status !== 'deleted' && (
+                        <>
+                          <IconButton
+                            size="small"
+                            onClick={(e) => setMenuAnchors((p) => ({ ...p, [top.id]: e.currentTarget }))}
+                          >
+                            <MoreVert sx={{ width: 20, height: 20 }} />
+                          </IconButton>
+                          <Menu
+                            anchorEl={menuAnchors[top.id] || null}
+                            open={Boolean(menuAnchors[top.id])}
+                            onClose={() => setMenuAnchors((p) => ({ ...p, [top.id]: null }))}
+                          >
+                            <MenuItem onClick={() => {
+                              setEditingDrafts((p) => ({ ...p, [top.id]: comments.byId[top.id]?.body || '' }));
+                              setMenuAnchors((p) => ({ ...p, [top.id]: null }));
+                            }}>Edit</MenuItem>
+                            <MenuItem onClick={() => {
+                              if (!trapId) return;
+                              const prev = comments.byId[top.id];
+                              setComments((p) => ({ ...p, byId: { ...p.byId, [top.id]: { ...prev, status: 'deleted' } as any } as any } as any));
+                              setMenuAnchors((p) => ({ ...p, [top.id]: null }));
+                              softDeleteComment(trapId, top.id).catch(() => {
+                                setComments((p) => ({ ...p, byId: { ...p.byId, [top.id]: prev } } as any));
+                              });
+                            }}>Delete</MenuItem>
+                          </Menu>
+                        </>
+                      )}
                     </Stack>
-                    <Typography sx={{ mt: 0.75 }}>{renderBody(top.body)}</Typography>
+                    {editingDrafts[top.id] !== undefined ? (
+                      <Box sx={{ mt: 0.75 }}>
+                        <Paper elevation={0} sx={{ p: 0.5, borderRadius: 1.5, bgcolor: alpha(currentTheme.palette.light.main, 0.02), border: `1px solid ${surfaceBorder}` }}>
+                          <InputBase
+                            value={editingDrafts[top.id]}
+                            onChange={(e) => setEditingDrafts((p) => ({ ...p, [top.id]: e.target.value }))}
+                            multiline
+                            minRows={1}
+                            sx={{ px: 1, py: 0.5, width: '100%' }}
+                          />
+                          <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end', px: 0.5, pb: 0.5 }}>
+                            <Button
+                              variant="outlined"
+                              color="brand"
+                              disabled={!editingDrafts[top.id]?.trim()}
+                              onClick={() => {
+                                if (!trapId) return;
+                                const value = (editingDrafts[top.id] || '').trim();
+                                const prev = comments.byId[top.id];
+                                setEditingDrafts((p) => { const n = { ...p }; delete n[top.id]; return n; });
+                                setComments((p) => ({ ...p, byId: { ...p.byId, [top.id]: { ...prev, body: value, status: 'edited' } as any } } as any));
+                                editComment(trapId, top.id, value).catch(() => {
+                                  setComments((p) => ({ ...p, byId: { ...p.byId, [top.id]: prev } } as any));
+                                });
+                              }}
+                              sx={{
+                                textTransform: 'none',
+                                height: 36,
+                                px: 1.25,
+                                color: 'dark.main',
+                                position: 'relative',
+                                overflow: 'hidden',
+                                border: `1px solid ${alpha(currentTheme.palette.brand.main, 0.45)}`,
+                                bgcolor: currentTheme.palette.brand.main,
+                                boxShadow: 'none',
+                                transition: 'transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease',
+                                '&:hover': {
+                                  transform: 'translateY(-1px)',
+                                  borderColor: alpha(currentTheme.palette.brand.main, 0.6),
+                                },
+                                '&:active': { transform: 'translateY(0)' },
+                                '&:focus-visible': {
+                                  outline: `2px solid ${alpha(currentTheme.palette.brand.main, 0.6)}`,
+                                  outlineOffset: '2px',
+                                },
+                                '&.Mui-disabled': {
+                                  bgcolor: alpha(currentTheme.palette.light.main, 0.14),
+                                  borderColor: alpha(currentTheme.palette.light.main, 0.18),
+                                  color: currentTheme.palette.light.main,
+                                  transform: 'none',
+                                },
+                              }}
+                            >
+                              Post
+                            </Button>
+                            <Button
+                              variant="text"
+                              color="inherit"
+                              onClick={() => setEditingDrafts((p) => { const n = { ...p }; delete n[top.id]; return n; })}
+                              sx={{ textTransform: 'none', height: 36, px: 1 }}
+                            >
+                              Cancel
+                            </Button>
+                          </Stack>
+                        </Paper>
+                      </Box>
+                    ) : (
+                      <Typography sx={{ mt: 0.75 }}>{top?.status === 'deleted' ? '(deleted)' : renderBody(top.body)}</Typography>
+                    )}
+                    {top.status !== 'deleted' && (
                     <Stack direction="row" spacing={0.5} sx={{ mt: 0.5, alignItems: 'center' }}>
                       <IconButton size="small" color="inherit" onClick={() => {
                         if (!trapId) return;
@@ -494,6 +698,7 @@ const TrapDetailsPage: React.FC = () => {
                       </IconButton>
                       <Button size="small" variant="text" color="inherit" onClick={() => setReplyDrafts((p) => ({ ...p, [top.id]: p[top.id] || '' }))} sx={{ textTransform: 'none' }}>Reply</Button>
                     </Stack>
+                    )}
                     {replyDrafts[top.id] !== undefined && (
                       <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
                         <Avatar src={composerProfile?.photoURL || currentUser?.photoURL || undefined} sx={{ width: 24, height: 24 }} />
@@ -526,16 +731,20 @@ const TrapDetailsPage: React.FC = () => {
                                 variant="outlined"
                                 color="brand"
                                 disabled={!currentUser || !(composerProfile?.displayName || currentUser?.displayName) || !replyDrafts[top.id]?.trim()}
-                                onClick={async () => {
+                                onClick={() => {
                                   if (!trapId) return;
                                   const body = (replyDrafts[top.id] || '').trim();
                                   if (!body) return;
-                                  try {
-                                    await addComment({ trapId: trapId, body, parentId: top.id });
-                                    setReplyDrafts((p) => { const n = { ...p }; delete n[top.id]; return n; });
-                                    setTrap((prev: any) => prev ? ({ ...prev, commentCount: (Number(prev.commentCount || 0) + 1) }) : prev);
-                                    await loadComments({ reset: true });
-                                  } catch {}
+                                  const tempId = addOptimisticComment(body, top.id);
+                                  setReplyDrafts((p) => { const n = { ...p }; delete n[top.id]; return n; });
+                                  if (!tempId) return;
+                                  addComment({ trapId: trapId, body, parentId: top.id })
+                                    .then((res) => {
+                                      replaceOptimisticCommentId(tempId, res.id, res.threadId);
+                                    })
+                                    .catch(() => {
+                                      removeOptimisticComment(tempId);
+                                    });
                                 }}
                                 sx={{
                                   textTransform: 'none',
@@ -583,12 +792,17 @@ const TrapDetailsPage: React.FC = () => {
                           return (
                             <Box key={rid} sx={{ p: 1, borderRadius: 1.5, bgcolor: alpha(currentTheme.palette.light.main, 0.02), border: `1px solid ${surfaceBorder}` }}>
                               <Stack direction="row" alignItems="center" spacing={1}>
-                                <Avatar src={rProfile?.photoURL || undefined} sx={{ width: 24, height: 24 }} />
+                                <Avatar src={(r?.status === 'deleted') ? undefined : (rProfile?.photoURL || undefined)} sx={{ width: 24, height: 24 }} />
                                 <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flex: 1, minWidth: 0 }}>
                                   <Typography variant="body2" noWrap>
-                                    {rProfile?.displayName || 'Anonymous'}
+                                    {(r?.status === 'deleted') ? '(deleted)' : (rProfile?.displayName || 'Anonymous')}{(r?.status === 'edited') ? ' ' : ''}
+                                    {(r?.status === 'edited') ? (
+                                      <Typography component="span" variant="caption" sx={{ opacity: 0.7 }}>
+                                        (edited)
+                                      </Typography>
+                                    ) : null}
                                   </Typography>
-                                  {rProfile?.discordUsername && (
+                                  {(r?.status !== 'deleted' && rProfile?.discordUsername) && (
                                     <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0 }}>
                                       <VerifiedUser sx={{ color: currentTheme.palette.brand.main, height: 16, width: 16 }} />
                                       <Typography variant="body2" sx={{ color: currentTheme.palette.brand.main, fontWeight: 700 }} noWrap>
@@ -597,9 +811,111 @@ const TrapDetailsPage: React.FC = () => {
                                     </Stack>
                                   )}
                                 </Stack>
-                                <Typography variant="caption" sx={{ opacity: 0.7 }}>{new Date(r.createdAt).toLocaleString()}</Typography>
+                                {r.status !== 'deleted' && (
+                                  <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                                    {new Date(r.createdAt).toLocaleString()}
+                                  </Typography>
+                                )}
+                                {currentUser && r.authorId === currentUser.uid && r.status !== 'deleted' && (
+                                  <>
+                                    <IconButton
+                                      size="small"
+                                      onClick={(e) => setMenuAnchors((p) => ({ ...p, [r.id]: e.currentTarget }))}
+                                    >
+                                      <MoreVert sx={{ width: 18, height: 18 }} />
+                                    </IconButton>
+                                    <Menu
+                                      anchorEl={menuAnchors[r.id] || null}
+                                      open={Boolean(menuAnchors[r.id])}
+                                      onClose={() => setMenuAnchors((p) => ({ ...p, [r.id]: null }))}
+                                    >
+                                      <MenuItem onClick={() => {
+                                        setEditingDrafts((p) => ({ ...p, [r.id]: comments.byId[r.id]?.body || '' }));
+                                        setMenuAnchors((p) => ({ ...p, [r.id]: null }));
+                                      }}>Edit</MenuItem>
+                                      <MenuItem onClick={() => {
+                                        if (!trapId) return;
+                                        const prev = comments.byId[r.id];
+                                        setComments((p) => ({ ...p, byId: { ...p.byId, [r.id]: { ...prev, status: 'deleted' } as any } } as any));
+                                        setMenuAnchors((p) => ({ ...p, [r.id]: null }));
+                                        softDeleteComment(trapId, r.id).catch(() => {
+                                          setComments((p) => ({ ...p, byId: { ...p.byId, [r.id]: prev } } as any));
+                                        });
+                                      }}>Delete</MenuItem>
+                                    </Menu>
+                                  </>
+                                )}
                               </Stack>
-                              <Typography sx={{ mt: 0.5 }}>{renderBody(r.body)}</Typography>
+                              {editingDrafts[r.id] !== undefined ? (
+                                <Box sx={{ mt: 0.5 }}>
+                                  <Paper elevation={0} sx={{ p: 0.5, borderRadius: 1.5, bgcolor: alpha(currentTheme.palette.light.main, 0.02), border: `1px solid ${surfaceBorder}` }}>
+                                    <InputBase
+                                      value={editingDrafts[r.id]}
+                                      onChange={(e) => setEditingDrafts((p) => ({ ...p, [r.id]: e.target.value }))}
+                                      multiline
+                                      minRows={1}
+                                      sx={{ px: 1, py: 0.5, width: '100%' }}
+                                    />
+                                    <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end', px: 0.5, pb: 0.5 }}>
+                                      <Button
+                                        variant="outlined"
+                                        color="brand"
+                                        disabled={!editingDrafts[r.id]?.trim()}
+                                        onClick={() => {
+                                          if (!trapId) return;
+                                          const value = (editingDrafts[r.id] || '').trim();
+                                          const prev = comments.byId[r.id];
+                                          setEditingDrafts((p) => { const n = { ...p }; delete n[r.id]; return n; });
+                                          setComments((p) => ({ ...p, byId: { ...p.byId, [r.id]: { ...prev, body: value, status: 'edited' } as any } } as any));
+                                          editComment(trapId, r.id, value).catch(() => {
+                                            setComments((p) => ({ ...p, byId: { ...p.byId, [r.id]: prev } } as any));
+                                          });
+                                        }}
+                                        sx={{
+                                          textTransform: 'none',
+                                          height: 36,
+                                          px: 1.25,
+                                          color: 'dark.main',
+                                          position: 'relative',
+                                          overflow: 'hidden',
+                                          border: `1px solid ${alpha(currentTheme.palette.brand.main, 0.45)}`,
+                                          bgcolor: currentTheme.palette.brand.main,
+                                          boxShadow: 'none',
+                                          transition: 'transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease',
+                                          '&:hover': {
+                                            transform: 'translateY(-1px)',
+                                            borderColor: alpha(currentTheme.palette.brand.main, 0.6),
+                                          },
+                                          '&:active': { transform: 'translateY(0)' },
+                                          '&:focus-visible': {
+                                            outline: `2px solid ${alpha(currentTheme.palette.brand.main, 0.6)}`,
+                                            outlineOffset: '2px',
+                                          },
+                                          '&.Mui-disabled': {
+                                            bgcolor: alpha(currentTheme.palette.light.main, 0.14),
+                                            borderColor: alpha(currentTheme.palette.light.main, 0.18),
+                                            color: currentTheme.palette.light.main,
+                                            transform: 'none',
+                                          },
+                                        }}
+                                      >
+                                        Post
+                                      </Button>
+                                      <Button
+                                        variant="text"
+                                        color="inherit"
+                                        onClick={() => setEditingDrafts((p) => { const n = { ...p }; delete n[r.id]; return n; })}
+                                        sx={{ textTransform: 'none', height: 36, px: 1 }}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </Stack>
+                                  </Paper>
+                                </Box>
+                              ) : (
+                                <Typography variant="body2" sx={{ mt: 0.5 }}>{r?.status === 'deleted' ? '(deleted)' : renderBody(r.body)}</Typography>
+                              )}
+                              {r.status !== 'deleted' && (
                               <Stack direction="row" spacing={0.5} sx={{ mt: 0.25, alignItems: 'center' }}>
                                 <IconButton size="small" color="inherit" onClick={() => {
                                   if (!trapId) return;
@@ -636,6 +952,7 @@ const TrapDetailsPage: React.FC = () => {
                                   });
                                 }} sx={{ textTransform: 'none' }}>Reply</Button>
                               </Stack>
+                              )}
                               {replyDrafts[r.id] !== undefined && (
                                 <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
                                   <Avatar src={composerProfile?.photoURL || currentUser?.photoURL || undefined} sx={{ width: 24, height: 24 }} />
@@ -669,15 +986,20 @@ const TrapDetailsPage: React.FC = () => {
                                           variant="outlined"
                                           color="brand"
                                           disabled={!currentUser || !(composerProfile?.displayName || currentUser?.displayName) || !replyDrafts[r.id]?.trim()}
-                                          onClick={async () => {
+                                          onClick={() => {
                                             if (!trapId) return;
                                             const body = (replyDrafts[r.id] || '').trim();
                                             if (!body) return;
-                                            try {
-                                              await addComment({ trapId: trapId, body, parentId: topId });
-                                              setReplyDrafts((p) => { const n = { ...p }; delete n[r.id]; return n; });
-                                              await loadComments({ reset: true });
-                                            } catch {}
+                                            const tempId = addOptimisticComment(body, topId);
+                                            setReplyDrafts((p) => { const n = { ...p }; delete n[r.id]; return n; });
+                                            if (!tempId) return;
+                                            addComment({ trapId: trapId, body, parentId: topId })
+                                              .then((res) => {
+                                                replaceOptimisticCommentId(tempId, res.id, res.threadId);
+                                              })
+                                              .catch(() => {
+                                                removeOptimisticComment(tempId);
+                                              });
                                           }}
                                           sx={{
                                             textTransform: 'none',
