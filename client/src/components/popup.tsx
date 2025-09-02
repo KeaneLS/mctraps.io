@@ -176,7 +176,6 @@ const Popup: React.FC<PopupProps> = ({ open, onClose }) => {
                 </Box>
               ))}
             </Box>
-            {/* edge fades */}
             <Box
               sx={(theme) => ({
                 pointerEvents: 'none',

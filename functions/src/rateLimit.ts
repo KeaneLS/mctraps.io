@@ -11,12 +11,23 @@ const db = getFirestore();
 
 export type RateLimitResult = {
   remaining: number;
-  resetAt: string; 
+  resetAt: string;
 };
 
 const DEFAULT_LIMIT = 60;
 const DEFAULT_WINDOW_SECONDS = 60;
 
+/**
+ * Enforce a per-user, per-function rate limit within a time window.
+ *
+ * @param {string} uid Unique user identifier.
+ * @param {string} backendFunction Function name used as part of the key.
+ * @param {number} [limit=DEFAULT_LIMIT] Max calls allowed in the window.
+ * @param {number} [windowSeconds=DEFAULT_WINDOW_SECONDS]
+ * Window size in seconds.
+ * @return {Promise<RateLimitResult>}
+ * Remaining calls and reset time (ISO).
+ */
 export async function enforceRateLimit(
   uid: string,
   backendFunction: string,

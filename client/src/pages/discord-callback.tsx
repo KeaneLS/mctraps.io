@@ -108,7 +108,7 @@ const DiscordCallback: React.FC = () => {
 
         const payload = { type: 'discord-auth-complete', code, state: rawState, profile };
         try { window.opener && window.opener.postMessage(payload, window.location.origin); } catch {}
-        if (mode === 'verify') {
+        if (mode === 'verify' || (mode === 'auth' && authAction === 'signup')) {
           try {
             window.location.replace('https://discord.gg/jNanZrV4xj');
             return;

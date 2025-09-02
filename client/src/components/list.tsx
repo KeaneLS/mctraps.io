@@ -11,6 +11,7 @@ import {
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import { Search, Close } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import { S as TierS, A as TierA, B as TierB, C as TierC, D as TierD, E as TierE, F as TierF } from '../tiers';
 import { readTraps, searchTraps as searchTrapsApi } from '../firebase/dataAccess';
 import FilterPanel, { FilterPayload } from './FilterPanel';
@@ -25,6 +26,7 @@ type Trap = {
   minigame: string,
   rating?: { average: number; count: number };
   tierlistRating?: { average: number; count: number };
+  commentCount?: number;
 };
 
 const useFetchTraps = () => {
@@ -133,6 +135,7 @@ const TrapRow: React.FC<{ trap: Trap }> = ({ trap }) => {
   const surfaceBg = theme.palette.mode === 'light' ? '#ECECED' : '#262628';
   const surfaceBorder = alpha(theme.palette.light.main, 0.12);
   const hoverBg = theme.palette.mode === 'light' ? '#DEDEDE' : '#333335';
+  const navigate = useNavigate();
 
   const avg = trap.rating?.average ?? trap.tierlistRating?.average ?? 0;
   const cnt = trap.rating?.count ?? trap.tierlistRating?.count ?? undefined;
@@ -164,12 +167,17 @@ const TrapRow: React.FC<{ trap: Trap }> = ({ trap }) => {
         p: 1.25,
         position: 'relative',
         transition: 'background-color 0ms linear, transform 150ms ease, border-color 120ms ease',
+        cursor: 'pointer',
         '&:hover': {
           bgcolor: hoverBg,
           borderColor: alpha(theme.palette.light.main, 0.18),
           transform: 'scale(1.02)',
           zIndex: 1,
         },
+      }}
+      onClick={(e) => {
+        e.preventDefault();
+        navigate(`/trap/${trap.id}`);
       }}
     >
       <Typography

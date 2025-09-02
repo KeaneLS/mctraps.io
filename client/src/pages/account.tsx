@@ -245,7 +245,7 @@ const AccountPage: React.FC = () => {
       <Navbar mode={mode} onToggleTheme={toggleMode} />
       <Box sx={{ height: 96 }} />
 
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+      <Box sx={{ mt: -1.15, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
         <Paper
           elevation={0}
           sx={{
@@ -448,6 +448,7 @@ const AccountPage: React.FC = () => {
               borderRadius: 2,
               px: 3,
               py: 3,
+              mt: -0.85,
               bgcolor: surfaceBg,
               border: `1px solid ${surfaceBorder}`,
               backdropFilter: 'blur(6px)',

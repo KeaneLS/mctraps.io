@@ -206,6 +206,10 @@ export const exchangeDiscordCode = onCall({
         {uid: stableUid},
       ]);
       if (importResult.failureCount > 0) {
+        functions.logger.warn(
+          "discord importUsers had failures",
+          {failureCount: importResult.failureCount}
+        );
       }
     } catch (err: unknown) {
       const message = (err as Error)?.message || String(err);

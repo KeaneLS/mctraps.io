@@ -43,7 +43,9 @@ const Landing: React.FC = () => {
       <CssBaseline />
       <Navbar mode={mode} onToggleTheme={toggleMode} />
       <Box sx={{ height: 96 }} />
-      <TrapList />
+      <Box sx={{mt: -1.15}}>
+        <TrapList />
+      </Box>
       <Popup open={showSignup && !currentUser} onClose={() => setShowSignup(false)} />
     </ThemeProvider>
   );

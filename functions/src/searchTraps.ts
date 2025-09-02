@@ -24,6 +24,8 @@ interface Trap {
   minigame?: string;
   rating?: TrapRating;
   tierlistRating?: TrapRating;
+  commentCount?: number;
+  description?: string;
 }
 
 type TierLetter = "S" | "A" | "B" | "C" | "D" | "E" | "F";
@@ -101,12 +103,16 @@ export const searchTraps = onCall(async (request) => {
   const types = Array.isArray(payload.types) ? payload.types : [];
 
   const snapshot = await query.get();
-  let result: Trap[] = snapshot.docs.map((d) => (
-    {
+  let result: Trap[] = snapshot.docs.map((d) => {
+    const data = d.data() as Record<string, unknown>;
+    const ccRaw = data?.commentCount as unknown;
+    const commentCount = typeof ccRaw === "number" ? ccRaw : 0;
+    return {
       id: d.id,
-      ...d.data(),
-    }
-  )) as Trap[];
+      ...data,
+      commentCount,
+    } as Trap;
+  });
 
   if (
     payload.search &&

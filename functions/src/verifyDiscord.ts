@@ -47,7 +47,8 @@ export const verifyDiscord = onCall(async (request) => {
       const adminAuth = getAdminAuth();
       const rec = await adminAuth.getUser(uid);
       discordUsername = rec.displayName ?? null;
-    } catch {
+    } catch (err) {
+      discordUsername = discordUsername ?? null;
     }
   }
 

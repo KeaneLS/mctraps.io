@@ -9,10 +9,10 @@ const root = ReactDOM.createRoot(
 );
 
 root.render(
-  <React.StrictMode>
+  <>
     <GlobalStyles styles={{ html: { overflowY: 'scroll' } }} />
     <AuthProvider>
       <App />
     </AuthProvider>
-  </React.StrictMode>
+  </>
 );
