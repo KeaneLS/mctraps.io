@@ -1189,7 +1189,7 @@ const TrapDetailsPage: React.FC = () => {
                                             const tempId = addOptimisticComment(body, topId);
                                             setReplyDrafts((p) => { const n = { ...p }; delete n[r.id]; return n; });
                                             if (!tempId) return;
-                                            addComment({ trapId: trapId, body, parentId: topId })
+                                            addComment({ trapId: trapId, body, parentId: r.id })
                                               .then((res) => {
                                                 replaceOptimisticCommentId(tempId, res.id, res.threadId);
                                               })
