@@ -341,7 +341,11 @@ const TrapDetailsPage: React.FC = () => {
     );
   }
 
-  const Tier = getTierFromAverage(trap?.tierlistRating?.average ?? trap?.rating?.average ?? 0);
+  const countForTier = (trap?.tierlistRating?.count ?? trap?.rating?.count ?? 0) as number;
+  const avgForTier = (countForTier > 0
+    ? (trap?.tierlistRating?.average ?? trap?.rating?.average ?? 0)
+    : null) as number | null;
+  const Tier = getTierFromAverage(avgForTier ?? undefined);
 
   const currentTheme = mode === 'light' ? lightTheme : darkTheme;
   const surfaceBg = currentTheme.palette.mode === 'light' ? '#ECECED' : '#262628';
@@ -411,8 +415,14 @@ const TrapDetailsPage: React.FC = () => {
               <Divider sx={{ borderColor: surfaceBorder }} />
               <Stack direction="row" alignItems="center" spacing={1}>
                 <Typography variant="body1"><strong>Tier:</strong></Typography>
-                <Tier size={24} />
-                <Typography variant="body1" sx={{ opacity: 0.7 }}>({trap?.tierlistRating?.count ?? trap?.rating?.count ?? 0} ratings)</Typography>
+                {countForTier > 0 && <Tier size={24} />}
+                {(() => {
+                  const cnt = countForTier;
+                  const label = cnt > 0 ? `${cnt} ratings` : 'No ratings';
+                  return (
+                    <Typography variant="body1" sx={{ opacity: 0.7 }}>({label})</Typography>
+                  );
+                })()}
               </Stack>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
                 <Select

@@ -12,6 +12,7 @@ import {
   linkWithCredential,
   EmailAuthProvider,
   signInWithCredential,
+  GoogleAuthProvider,
   getIdToken,
 } from "firebase/auth";
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
@@ -91,9 +92,21 @@ export const loginWithGoogle = async () => {
       await ensureUserDocument(linked.user);
       return linked.user;
     } catch (err: any) {
-      // If the Google account already exists, sign into it instead
-      if (err?.code === "auth/credential-already-in-use" ||
-          err?.code === "auth/email-already-in-use") {
+      const code = err?.code as string | undefined;
+      if (
+        code === "auth/credential-already-in-use" ||
+        code === "auth/account-exists-with-different-credential" ||
+        code === "auth/email-already-in-use"
+      ) {
+        try {
+          const cred = GoogleAuthProvider.credentialFromError(err);
+          if (cred) {
+            const signed = await signInWithCredential(auth, cred);
+            try { await signed.user.reload(); } catch {}
+            await ensureUserDocument(signed.user);
+            return signed.user;
+          }
+        } catch {}
         const signed = await signInWithPopup(auth, googleProvider);
         try { await signed.user.reload(); } catch {}
         await ensureUserDocument(signed.user);

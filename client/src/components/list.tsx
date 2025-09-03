@@ -137,9 +137,9 @@ const TrapRow: React.FC<{ trap: Trap }> = ({ trap }) => {
   const hoverBg = theme.palette.mode === 'light' ? '#DEDEDE' : '#333335';
   const navigate = useNavigate();
 
-  const avg = trap.rating?.average ?? trap.tierlistRating?.average ?? 0;
-  const cnt = trap.rating?.count ?? trap.tierlistRating?.count ?? undefined;
-  const rounded = Math.max(0, Math.min(6, Math.round(avg)));
+  const avg = trap.tierlistRating?.average ?? trap.rating?.average ?? null;
+  const cnt = trap.tierlistRating?.count ?? trap.rating?.count ?? 0;
+  const rounded = Math.max(0, Math.min(6, Math.round(avg || 0)));
   const Tier = (
     rounded === 6 ? TierS :
     rounded === 5 ? TierA :
@@ -224,9 +224,9 @@ const TrapRow: React.FC<{ trap: Trap }> = ({ trap }) => {
             {trap.creators.join(', ')}
           </Typography>
           <Box mt={0.9} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Tier size={28}/>
+            {cnt > 0 && <Tier size={28} />}
             <Typography variant="body2" sx={{ opacity: 0.5, fontWeight: 500 }} noWrap>
-                {cnt ?? 0} ratings
+              {cnt > 0 ? `${cnt} ratings` : 'No ratings'}
             </Typography>
           </Box>
         </Box>

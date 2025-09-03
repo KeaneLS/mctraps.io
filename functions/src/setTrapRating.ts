@@ -49,10 +49,12 @@ export const setTrapRating = onCall(async (request) => {
     }
 
     const t = trapSnap.data() as {
-      tierlistRating?: {average?: number; count?: number};
+      tierlistRating?: {average?: number | null; count?: number};
     };
-    const currentAvg = Number(t?.tierlistRating?.average ?? 0);
     const currentCount = Number(t?.tierlistRating?.count ?? 0);
+    const currentAvg = (currentCount > 0 && typeof t?.tierlistRating?.average === "number")
+      ? Number(t?.tierlistRating?.average)
+      : 0;
 
     const prevSnap = await tx.get(ratingRef);
     const prevVal = prevSnap.exists ? (prevSnap.get("value") as number) :
@@ -63,9 +65,9 @@ export const setTrapRating = onCall(async (request) => {
 
     if (prevVal === null) {
       // new rating
-      const total = currentAvg * currentCount + value;
+      const total = (currentAvg * currentCount) + value;
       nextCount = currentCount + 1;
-      nextAvg = nextCount > 0 ? total / nextCount : 0;
+      nextAvg = total / nextCount;
     } else if (prevVal !== value) {
       // update rating
       if (currentCount <= 0) {
@@ -80,7 +82,7 @@ export const setTrapRating = onCall(async (request) => {
     const now = FieldValue.serverTimestamp();
     tx.set(ratingRef, {value, updatedAt: now});
     tx.update(trapRef, {
-      tierlistRating: {average: nextAvg, count: nextCount},
+      tierlistRating: {average: nextCount > 0 ? nextAvg : null, count: nextCount},
       lastActivityAt: now,
     });
 
