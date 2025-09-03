@@ -203,6 +203,10 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
     try { window.localStorage.setItem('discord_code_verifier', codeVerifier); } catch {}
     try { window.localStorage.setItem('discordAuthPending', '1'); } catch {}
     try { window.localStorage.setItem('discordAuthIntent', isSignup ? 'signup' : 'login'); } catch {}
+    try {
+      const user = (await import('../firebase/config')).auth.currentUser;
+      if (user?.uid) window.localStorage.setItem('discord_verify_uid', user.uid);
+    } catch {}
 
     const params = new URLSearchParams({
       client_id: clientId,
@@ -268,12 +272,20 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
             }
             await maybeVerifyAndInvite();
           } catch {}
+          try { window.localStorage.removeItem('discord_verify_uid'); } catch {}
         })();
       } else if (data && data.type === 'discord-auth-error') {
+        const code = (data as any)?.code as string | undefined;
+        const msg = (data as any)?.error as string | undefined;
+        if (code === 'already-exists' || msg === 'discord_already_linked') {
+          setError('Discord account is already linked to another account.');
+        } else {
+          setError('Discord sign-in failed. Please try again.');
+        }
         try { window.localStorage.removeItem('discordAuthPending'); } catch {}
         try { window.localStorage.removeItem('discordAuthIntent'); } catch {}
         try { window.localStorage.removeItem('discordAuthReady'); } catch {}
-        setError('Discord sign-in failed. Please try again.');
+        try { window.localStorage.removeItem('discord_verify_uid'); } catch {}
       }
     }
     window.addEventListener('message', onMessage);

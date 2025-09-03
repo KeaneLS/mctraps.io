@@ -53,6 +53,7 @@ const AccountPage: React.FC = () => {
   const [avatarFile, setAvatarFile] = React.useState<File | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const [discordUsername, setDiscordUsername] = React.useState<string | null>(null);
+  const [discordError, setDiscordError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     setUsername(initialUsername);
@@ -206,6 +207,7 @@ const AccountPage: React.FC = () => {
     } catch { return; }
     try { window.localStorage.setItem('discord_oauth_state', state); } catch {}
     try { window.localStorage.setItem('discord_code_verifier', codeVerifier); } catch {}
+    try { if (currentUser?.uid) window.localStorage.setItem('discord_verify_uid', currentUser.uid); } catch {}
     const params = new URLSearchParams({
       client_id: clientId,
       response_type: 'code',
@@ -233,6 +235,17 @@ const AccountPage: React.FC = () => {
             }
           } catch {}
         })();
+        try { window.localStorage.removeItem('discord_verify_uid'); } catch {}
+        setDiscordError(null);
+      } else if (data && data.type === 'discord-auth-error') {
+        const code = (data as any)?.code as string | undefined;
+        const msg = (data as any)?.error as string | undefined;
+        if (code === 'already-exists' || msg === 'discord_already_linked') {
+          setDiscordError('Discord account is already linked to another account.');
+        } else {
+          setDiscordError('Discord verification failed. Please try again.');
+        }
+        try { window.localStorage.removeItem('discord_verify_uid'); } catch {}
       }
     }
     window.addEventListener('message', onMessage);
@@ -500,6 +513,11 @@ const AccountPage: React.FC = () => {
               >
                 Verify with Discord
               </Button>
+              {discordError && (
+                <Typography variant="body2" sx={{ color: currentTheme.palette.light.main, mt: 1 }}>
+                  {discordError}
+                </Typography>
+              )}
             </Stack>
           </Paper>
         )}

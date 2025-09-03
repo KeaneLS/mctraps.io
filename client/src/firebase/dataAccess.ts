@@ -457,3 +457,13 @@ export async function softDeleteComment(
   const callable = httpsCallable(functions, 'softDeleteComment');
   await callable({ trapId, commentId });
 }
+
+// Ratings
+export async function setTrapRating(
+  trapId: string,
+  value: 0 | 1 | 2 | 3 | 4 | 5 | 6
+): Promise<{ average: number; count: number }> {
+  const callable = httpsCallable(functions, 'setTrapRating');
+  const res = await callable({ trapId, value });
+  return res.data as { average: number; count: number };
+}

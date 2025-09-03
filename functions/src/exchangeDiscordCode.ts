@@ -21,12 +21,20 @@ type ExchangePayload = {
   redirectUri?: string;
   codeVerifier?: string;
   mode?: "auth" | "verify";
+  intendedUid?: string;
+  authAction?: "login" | "signup";
 };
 
 export const exchangeDiscordCode = onCall({
   secrets: [DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET],
 }, async (request) => {
   const callerUid = request.auth?.uid;
+  const intendedUidRaw = (request.data as ExchangePayload)?.intendedUid;
+  const intendedUid = intendedUidRaw &&
+    intendedUidRaw.trim() !== "" ?
+    intendedUidRaw :
+    undefined;
+  const authAction = (request.data as ExchangePayload)?.authAction;
   if (callerUid) {
     await enforceRateLimit(
       callerUid,
@@ -141,8 +149,46 @@ export const exchangeDiscordCode = onCall({
   const avatar: string | null = userJson.avatar ?
     `${cdn}/${userJson.id}/${userJson.avatar}.png` :
     null;
+  const discordId = userJson.id;
+  const linkRef = db.collection("discordLinks").doc(discordId);
+  const linkSnap = await linkRef.get();
+  const existingUid: string | undefined = linkSnap.exists ?
+    (linkSnap.get("uid") as string | undefined) :
+    undefined;
+
+  if (mode === "auth" && authAction === "signup" && existingUid) {
+    throw new HttpsError(
+      "already-exists",
+      "discord_already_linked"
+    );
+  }
 
   if (mode === "verify") {
+    if (!intendedUid) {
+      throw new HttpsError(
+        "invalid-argument",
+        "missing_intended_uid"
+      );
+    }
+    if (existingUid && existingUid !== intendedUid) {
+      throw new HttpsError(
+        "already-exists",
+        "discord_already_linked"
+      );
+    }
+    if (!existingUid) {
+      try {
+        await linkRef.set({
+          uid: intendedUid,
+          createdAt: FieldValue.serverTimestamp(),
+        }, {merge: true});
+      } catch (err: unknown) {
+        const message = (err as Error)?.message || String(err);
+        functions.logger.warn("discord linkRef set (verify) failed", {
+          message,
+        });
+      }
+    }
     return {
       profile: {
         displayName: username,
@@ -155,22 +201,18 @@ export const exchangeDiscordCode = onCall({
 
   const adminAuth = getAdminAuth();
   let uid: string | null = null;
-  const discordId = userJson.id;
-  const linkRef = db.collection("discordLinks").doc(discordId);
-  const linkSnap = await linkRef.get();
 
-  if (linkSnap.exists) {
-    const mapped = linkSnap.get("uid") as string | undefined;
-    if (mapped) {
-      uid = mapped;
-    }
+  if (existingUid) {
+    uid = existingUid;
   }
 
   if (!uid && callerUid) {
     uid = callerUid;
     try {
-      await linkRef.set({uid, createdAt: FieldValue.serverTimestamp()},
-        {merge: true});
+      await linkRef.set({
+        uid,
+        createdAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
     } catch (err: unknown) {
       const message = (err as Error)?.message || String(err);
       functions.logger.warn("discord linkRef set (caller) failed", {message});
@@ -191,8 +233,10 @@ export const exchangeDiscordCode = onCall({
       uid = created.uid;
     }
     try {
-      await linkRef.set({uid, createdAt: FieldValue.serverTimestamp()},
-        {merge: true});
+      await linkRef.set({
+        uid,
+        createdAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
     } catch (err: unknown) {
       const message = (err as Error)?.message || String(err);
       functions.logger.warn("discord linkRef set (email) failed", {message});
@@ -217,8 +261,10 @@ export const exchangeDiscordCode = onCall({
     }
     uid = stableUid;
     try {
-      await linkRef.set({uid, createdAt: FieldValue.serverTimestamp()},
-        {merge: true});
+      await linkRef.set({
+        uid,
+        createdAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
     } catch (err: unknown) {
       const message = (err as Error)?.message || String(err);
       functions.logger.warn("discord linkRef set (fallback) failed", {message});

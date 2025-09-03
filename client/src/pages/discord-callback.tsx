@@ -58,7 +58,17 @@ const DiscordCallback: React.FC = () => {
         try { await ensureAnonymousUser(); } catch {}
         const redirectUri = `${window.location.origin}/auth/discord/callback`;
         const exchange = httpsCallable(functions, 'exchangeDiscordCode');
-        const res: any = await exchange({ code, redirectUri, codeVerifier, mode });
+        const intendedUid = (() => {
+          try { return window.localStorage.getItem('discord_verify_uid') || undefined; } catch { return undefined; }
+        })();
+        const res: any = await exchange({
+          code,
+          redirectUri,
+          codeVerifier,
+          mode,
+          intendedUid,
+          authAction: authAction || undefined,
+        });
         const customToken = res?.data?.customToken as string | undefined;
         const profile = res?.data?.profile as { displayName?: string | null; email?: string | null; photoURL?: string | null; discordUsername?: string | null } | undefined;
 
@@ -119,7 +129,8 @@ const DiscordCallback: React.FC = () => {
         try { sessionStorage.removeItem(processedKey); } catch {}
         try {
           const message = err?.message || 'Discord authentication failed';
-          const payload = { type: 'discord-auth-error', error: message };
+          const code = err?.code || '';
+          const payload = { type: 'discord-auth-error', error: message, code } as any;
           try { window.opener && window.opener.postMessage(payload, window.location.origin); } catch {}
           try { console.error('Discord auth error:', err); } catch {}
         } catch {}
@@ -128,7 +139,35 @@ const DiscordCallback: React.FC = () => {
     })();
   }, []);
 
-  return null;
+  return (
+    <div style={{
+      fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif',
+      color: '#e5e5e5',
+      backgroundColor: '#0b0b0b',
+      height: '100vh',
+      margin: 0,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'column',
+      gap: 16,
+      padding: 24,
+      boxSizing: 'border-box',
+    }}>
+      <div style={{ opacity: 0.9, fontSize: 16 }}>Connecting to Discord…</div>
+      <div style={{ position: 'relative', width: 260, height: 6, background: 'rgba(255,255,255,0.12)', borderRadius: 9999, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', left: '-40%', width: '40%', top: 0, bottom: 0, background: '#5865F2', borderRadius: 9999, animation: 'indeterminate 1.2s infinite ease-in-out' }} />
+      </div>
+      <style>{`
+        @keyframes indeterminate {
+          0% { left: -40%; width: 40%; }
+          50% { left: 20%; width: 60%; }
+          100% { left: 100%; width: 20%; }
+        }
+        html, body, #root { height: 100%; }
+      `}</style>
+    </div>
+  );
 };
 
 export default DiscordCallback;

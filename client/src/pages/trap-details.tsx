@@ -15,7 +15,7 @@ import {
 import { alpha } from '@mui/material/styles';
 import Navbar from '../components/Navbar';
 import { darkTheme, lightTheme, AppThemeMode } from '../theme';
-import { readTrapById, readTrapComments, PaginatedComments, resolveUserProfiles, UserProfile, addComment, setCommentVote, readUserCommentVotes, editComment, softDeleteComment } from '../firebase/dataAccess';
+import { readTrapById, readTrapComments, PaginatedComments, resolveUserProfiles, UserProfile, addComment, setCommentVote, readUserCommentVotes, editComment, softDeleteComment, setTrapRating } from '../firebase/dataAccess';
 import Avatar from '@mui/material/Avatar';
 import InputBase from '@mui/material/InputBase';
 import { useAuth } from '../firebase/authContext';
@@ -29,6 +29,7 @@ import ReplyOutlined from '@mui/icons-material/ReplyOutlined';
 import MoreVert from '@mui/icons-material/MoreVert';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
 
 function getTierFromAverage(avg?: number) {
   const rounded = Math.max(0, Math.min(6, Math.round(avg ?? 0)));
@@ -79,6 +80,34 @@ const TrapDetailsPage: React.FC = () => {
   const [userVotes, setUserVotes] = React.useState<Record<string, 1 | -1 | 0>>({});
   const { currentUser } = useAuth();
   const [composerProfile, setComposerProfile] = React.useState<UserProfile | null>(null);
+  const [ratingChoice, setRatingChoice] = React.useState<'' | 'S' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F'>('');
+  const [showRatingLoginPrompt, setShowRatingLoginPrompt] = React.useState(false);
+  const TierByLetter: Record<'S'|'A'|'B'|'C'|'D'|'E'|'F', React.FC<{ size?: number }>> = React.useMemo(() => ({
+    S: TierS,
+    A: TierA,
+    B: TierB,
+    C: TierC,
+    D: TierD,
+    E: TierE,
+    F: TierF,
+  }), []);
+  const TierText: Record<'S'|'A'|'B'|'C'|'D'|'E'|'F', string> = React.useMemo(() => ({
+    S: 'Supreme',
+    A: 'Excellent',
+    B: 'Strong',
+    C: 'Decent',
+    D: 'Weak',
+    E: 'Poor',
+    F: 'Awful',
+  }), []);
+  const letterToValue = React.useCallback((letter: 'S'|'A'|'B'|'C'|'D'|'E'|'F'): 0|1|2|3|4|5|6 => (
+    letter === 'S' ? 6 :
+    letter === 'A' ? 5 :
+    letter === 'B' ? 4 :
+    letter === 'C' ? 3 :
+    letter === 'D' ? 2 :
+    letter === 'E' ? 1 : 0
+  ), []);
   const ensureComposerProfileInMap = React.useCallback(() => {
     if (!currentUser) return;
     const uid = currentUser.uid;
@@ -385,6 +414,159 @@ const TrapDetailsPage: React.FC = () => {
                 <Tier size={24} />
                 <Typography variant="body1" sx={{ opacity: 0.7 }}>({trap?.tierlistRating?.count ?? trap?.rating?.count ?? 0} ratings)</Typography>
               </Stack>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+                <Select
+                  size="small"
+                  displayEmpty
+                  value={ratingChoice}
+                  onChange={(e) => setRatingChoice((e.target.value as any) || '')}
+                  renderValue={(selected) => (
+                    selected ? (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                        {(() => { const C = TierByLetter[selected as 'S']; return <C size={20} />; })()}
+                        <Typography variant="body2">Rate Trap</Typography>
+                      </Box>
+                    ) : (
+                      <Typography variant="body2">Rate Trap</Typography>
+                    )
+                  )}
+                  sx={{
+                    minWidth: 120,
+                    height: 36,
+                    px: 1,
+                    borderRadius: 2,
+                    boxShadow: 'none',
+                    bgcolor: alpha(currentTheme.palette.light.main, 0.04),
+                    transition: 'transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease',
+                    '&:hover': {
+                      transform: 'translateY(-1px)',
+                      bgcolor: alpha(currentTheme.palette.light.main, 0.1),
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: alpha(currentTheme.palette.light.main, 0.2),
+                      },
+                    },
+                    '& .MuiSelect-select': {
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      py: 0,
+                      height: 34,
+                      lineHeight: '34px',
+                    },
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      border: `1px solid ${surfaceBorder}`,
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: alpha(currentTheme.palette.light.main, 0.2),
+                    },
+                    '&.Mui-disabled': {
+                      bgcolor: alpha(currentTheme.palette.light.main, 0.14),
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: alpha(currentTheme.palette.light.main, 0.18),
+                      },
+                      color: currentTheme.palette.light.main,
+                      transform: 'none',
+                    },
+                  }}
+                >
+                  {/* Intentionally no placeholder menu item; title is renderValue */}
+                  {(['S','A','B','C','D','E','F'] as const).map((t) => {
+                    const Comp = TierByLetter[t];
+                    return (
+                      <MenuItem
+                        key={t}
+                        value={t}
+                        sx={{
+                          '&.Mui-selected': {
+                            bgcolor: mode === 'dark'
+                              ? alpha(currentTheme.palette.light.main, 0.14)
+                              : alpha(currentTheme.palette.dark.main, 0.14),
+                            color: mode === 'dark'
+                              ? currentTheme.palette.light.main
+                              : currentTheme.palette.dark.main,
+                          },
+                          '&.Mui-selected:hover': {
+                            bgcolor: mode === 'dark'
+                              ? alpha(currentTheme.palette.light.main, 0.18)
+                              : alpha(currentTheme.palette.dark.main, 0.18),
+                          },
+                        }}
+                      >
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Comp size={22} />
+                          <Typography variant="body2">{TierText[t]}</Typography>
+                        </Stack>
+                      </MenuItem>
+                    );
+                  })}
+                </Select>
+                <Button
+                  variant="outlined"
+                  color="brand"
+                  disabled={!ratingChoice}
+                  onClick={async () => {
+                    if (!trapId || !ratingChoice) return;
+                    if (!currentUser) {
+                      setShowRatingLoginPrompt(true);
+                      return;
+                    }
+                    try {
+                      const res = await setTrapRating(trapId, letterToValue(ratingChoice as any));
+                      setTrap((prev: any) => prev ? ({
+                        ...prev,
+                        tierlistRating: { average: res.average, count: res.count },
+                      }) : prev);
+                      setRatingChoice('');
+                      setShowRatingLoginPrompt(false);
+                    } catch {}
+                  }}
+                  sx={{
+                    textTransform: 'none',
+                    height: 36,
+                    px: 1.25,
+                    borderRadius: 2,
+                    color: 'dark.main',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    border: `1px solid ${alpha(currentTheme.palette.brand.main, 0.45)}`,
+                    bgcolor: currentTheme.palette.brand.main,
+                    boxShadow: 'none',
+                    transition: 'transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease',
+                    '&:hover': {
+                      transform: 'translateY(-1px)',
+                      borderColor: alpha(currentTheme.palette.brand.main, 0.6),
+                    },
+                    '&:active': { transform: 'translateY(0)' },
+                    '&:focus-visible': {
+                      outline: `2px solid ${alpha(currentTheme.palette.brand.main, 0.6)}`,
+                      outlineOffset: '2px',
+                    },
+                    '&.Mui-disabled': {
+                      bgcolor: alpha(currentTheme.palette.light.main, 0.14),
+                      borderColor: alpha(currentTheme.palette.light.main, 0.18),
+                      color: currentTheme.palette.light.main,
+                      transform: 'none',
+                    },
+                  }}
+                >
+                  Submit
+                </Button>
+                {showRatingLoginPrompt && !currentUser && (
+                  <Typography
+                    variant="body1"
+                    sx={{ ml: 1, opacity: 0.8 }}
+                  >
+                    <Box
+                      component="span"
+                      onClick={() => navigate('/login')}
+                      sx={{ color: currentTheme.palette.brand.main, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      Sign in
+                    </Box>
+                    {` to rate traps`}
+                  </Typography>
+                )}
+              </Stack>
               <Typography variant="body1"><strong>Creators:</strong> {Array.isArray(trap.creators) ? trap.creators.join(', ') : ''}</Typography>
               <Typography variant="body1"><strong>Date Invented:</strong> {trap.dateInvented}</Typography>
               <Typography variant="body1"><strong>Minigame:</strong> {trap.minigame}</Typography>
@@ -504,6 +686,7 @@ const TrapDetailsPage: React.FC = () => {
                     textTransform: 'none',
                     height: 36,
                     px: 1.25,
+                    borderRadius: 2,
                     color: 'dark.main',
                     position: 'relative',
                     overflow: 'hidden',
@@ -629,6 +812,7 @@ const TrapDetailsPage: React.FC = () => {
                                 textTransform: 'none',
                                 height: 36,
                                 px: 1.25,
+                                borderRadius: 2,
                                 color: 'dark.main',
                                 position: 'relative',
                                 overflow: 'hidden',
@@ -750,6 +934,7 @@ const TrapDetailsPage: React.FC = () => {
                                   textTransform: 'none',
                                   height: 32,
                                   px: 1,
+                                  borderRadius: 2,
                                   color: 'dark.main',
                                   position: 'relative',
                                   overflow: 'hidden',
@@ -875,6 +1060,7 @@ const TrapDetailsPage: React.FC = () => {
                                           textTransform: 'none',
                                           height: 36,
                                           px: 1.25,
+                                          borderRadius: 2,
                                           color: 'dark.main',
                                           position: 'relative',
                                           overflow: 'hidden',
@@ -1005,6 +1191,7 @@ const TrapDetailsPage: React.FC = () => {
                                             textTransform: 'none',
                                             height: 32,
                                             px: 1,
+                                            borderRadius: 2,
                                             color: 'dark.main',
                                             position: 'relative',
                                             overflow: 'hidden',
