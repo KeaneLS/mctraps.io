@@ -77,7 +77,7 @@ export const searchTraps = onCall(async (request) => {
   if (!uid) {
     throw new HttpsError(
       "unauthenticated",
-      "Sign in (anonymously) before calling searchTraps."
+      "Log in (anonymously) before calling searchTraps."
     );
   }
   await enforceRateLimit(uid, "searchTraps", 5, 60); // 5 FOR TESTING

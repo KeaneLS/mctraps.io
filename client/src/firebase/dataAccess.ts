@@ -1,7 +1,8 @@
-import { db, functions } from "./config";
+import { db, functions, storage } from "./config";
 import { collection, addDoc, getDocs, QueryDocumentSnapshot, DocumentData, query, orderBy, limit, startAfter, doc, getDoc, where, collectionGroup } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { ensureAnonymousUser } from "./authentication";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 // in-memory caches for traps and search results
 type TrapsCacheEntry = { data: any[]; expiry: number };
@@ -9,6 +10,8 @@ let trapsCache: TrapsCacheEntry | null = null;
 const DEFAULT_TRAPS_TTL_MS = 2 * 60 * 1000; // 2 minutes (i might change idk)
 
 const searchCache: Map<string, TrapsCacheEntry> = new Map();
+// Separate cache for traps in review
+let trapsInReviewCache: TrapsCacheEntry | null = null;
 
 function getYouTubeThumbnail(youtubeUrl: string): string {
   let videoId: string;
@@ -137,6 +140,41 @@ export function invalidateTrapsCache() {
   trapsCache = null;
 }
 
+function normalizeReviewTrap(data: Record<string, any>): Record<string, any> {
+  const minigame = Array.isArray(data.minigame)
+    ? String(data.minigame[0] ?? '')
+    : String(data.minigame ?? '');
+  const type = Array.isArray(data.type)
+    ? String(data.type[0] ?? '')
+    : String(data.type ?? '');
+  const ccRaw = data?.commentCount as unknown;
+  const commentCount = typeof ccRaw === 'number' ? ccRaw : 0;
+  return { ...data, minigame, type, commentCount } as Record<string, any>;
+}
+
+export async function readTrapsInReview(options?: { force?: boolean; ttlMs?: number }) {
+  const ttlMs = Math.max(0, options?.ttlMs ?? DEFAULT_TRAPS_TTL_MS);
+  const now = Date.now();
+  if (!options?.force && trapsInReviewCache && trapsInReviewCache.expiry > now) {
+    return trapsInReviewCache.data;
+  }
+
+  await ensureAnonymousUser();
+  const col = collection(db, 'trapsInReview');
+  const snap = await getDocs(query(col, orderBy('dateInvented', 'asc')));
+  const traps = snap.docs.map((d) => {
+    const data = normalizeReviewTrap(d.data() as Record<string, unknown> as any);
+    return { id: d.id, ...data } as any;
+  });
+  trapsInReviewCache = { data: traps, expiry: now + ttlMs };
+  try { console.log('Read the following trapsInReview:', traps); } catch {}
+  return traps;
+}
+
+export function invalidateTrapsInReviewCache() {
+  trapsInReviewCache = null;
+}
+
 export type TierLetter = 'S' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
 export type MinigameOption = 'UHC' | 'SMP' | 'HCF' | 'Hoplite' | 'Skywars' | 'Walls' | 'Speed UHC';
 export type TypeOption = 'Main' | 'Backup' | 'Hybrid';
@@ -179,6 +217,84 @@ export async function searchTraps(
 
 export function clearSearchCache() {
   searchCache.clear();
+}
+
+export async function searchTrapsInReview(
+  payload: FilterPayload,
+  options?: { force?: boolean; ttlMs?: number }
+): Promise<any[]> {
+  const ttlMs = Math.max(0, options?.ttlMs ?? DEFAULT_TRAPS_TTL_MS);
+  const key = `inReview:${JSON.stringify(payload || {})}`;
+  const now = Date.now();
+
+  if (!options?.force) {
+    const cached = searchCache.get(key);
+    if (cached && cached.expiry > now) {
+      return cached.data as any[];
+    }
+  }
+
+  const base = (await readTrapsInReview({ force: true, ttlMs })) as any[];
+  const toKey = (v?: string) => String(v ?? '').trim().toLowerCase();
+
+  let result = [...base];
+
+  if (payload.dateInvented) {
+    const { from, to, direction } = payload.dateInvented;
+    if (from) result = result.filter((t) => String(t.dateInvented) >= from);
+    if (to) result = result.filter((t) => String(t.dateInvented) <= to);
+    if (direction) {
+      result.sort((a, b) =>
+        direction === 'asc'
+          ? String(a.dateInvented).localeCompare(String(b.dateInvented))
+          : String(b.dateInvented).localeCompare(String(a.dateInvented))
+      );
+    }
+  }
+
+  const minigames = Array.isArray(payload.minigames) ? payload.minigames : [];
+  const types = Array.isArray(payload.types) ? payload.types : [];
+
+  if (payload.search && typeof payload.search === 'string' && payload.search.trim() !== '') {
+    const q = payload.search.toLowerCase();
+    result = result.filter((t: any) => {
+      const name = String(t.name ?? '').toLowerCase();
+      const creators = Array.isArray(t.creators) ? t.creators : [];
+      const type = String(t.type ?? '').toLowerCase();
+      const minigame = String(t.minigame ?? '').toLowerCase();
+      return (
+        name.includes(q) ||
+        creators.some((c: any) => String(c).toLowerCase().includes(q)) ||
+        type.includes(q) ||
+        minigame.includes(q)
+      );
+    });
+  }
+
+  if (minigames.length) {
+    const allowed = new Set(minigames.map((m) => toKey(m as string)));
+    result = result.filter((t: any) => allowed.has(toKey(t.minigame)));
+  }
+  if (types.length) {
+    const allowed = new Set(types.map((t) => toKey(t as string)));
+    result = result.filter((t: any) => allowed.has(toKey(t.type)));
+  }
+
+  if (payload.tierlistRating && payload.tierlistRating.direction) {
+    const { direction } = payload.tierlistRating;
+    result.sort((a: any, b: any) => {
+      const ra = typeof a?.tierlistRating?.average === 'number'
+        ? (a.tierlistRating?.average as number)
+        : 0;
+      const rb = typeof b?.tierlistRating?.average === 'number'
+        ? (b.tierlistRating?.average as number)
+        : 0;
+      return direction === 'asc' ? ra - rb : rb - ra;
+    });
+  }
+
+  searchCache.set(key, { data: result, expiry: now + ttlMs });
+  return result;
 }
 
 export function getTrapFromCache(id: string): any | null {
@@ -363,6 +479,17 @@ export async function readTrapById(trapId: string) {
   return { id: snap.id, ...(snap.data() as Record<string, unknown>) } as any;
 }
 
+export async function readTrapInReviewById(trapId: string) {
+  await ensureAnonymousUser();
+  const r = doc(db, 'trapsInReview', trapId);
+  const snap = await getDoc(r);
+  if (!snap.exists()) {
+    throw new Error('Trap not found');
+  }
+  const raw = snap.data() as Record<string, unknown>;
+  return { id: snap.id, ...normalizeReviewTrap(raw as any) } as any;
+}
+
 export type UserProfile = {
   displayName: string | null;
   photoURL: string | null;
@@ -458,7 +585,6 @@ export async function softDeleteComment(
   await callable({ trapId, commentId });
 }
 
-// Ratings
 export async function setTrapRating(
   trapId: string,
   value: 0 | 1 | 2 | 3 | 4 | 5 | 6
@@ -466,4 +592,54 @@ export async function setTrapRating(
   const callable = httpsCallable(functions, 'setTrapRating');
   const res = await callable({ trapId, value });
   return res.data as { average: number; count: number };
+}
+
+export async function reviewTrap(input: {
+  trapId: string;
+  verdict: 'accept' | 'deny';
+  reason?: string;
+}): Promise<{ status: 'accepted' | 'denied'; trapId: string }>{
+  const callable = httpsCallable(functions, 'reviewTrap');
+  const res = await callable({
+    trapId: input.trapId,
+    verdict: input.verdict,
+    reason: input.reason ?? null,
+  });
+  return res.data as { status: 'accepted' | 'denied'; trapId: string };
+}
+
+export async function submitTrapForReview(input: {
+  name: string;
+  creators: string[];
+  minigame: string[];
+  type: string[];
+  dateInvented: string; // yyyy-mm-dd
+  youtubeUrl: string;
+  description?: string;
+  thumbnailFile?: File | null;
+}): Promise<{ id: string }>{
+  await ensureAnonymousUser();
+
+  let thumbnailUrl: string | null = null;
+  if (input.thumbnailFile) {
+    const file = input.thumbnailFile;
+    const safeName = file.name.replace(/[^a-zA-Z0-9_.-]/g, "_");
+    const path = `trapsInReview/${Date.now()}_${safeName}`;
+    const r = ref(storage, path);
+    const snap = await uploadBytes(r, file);
+    thumbnailUrl = await getDownloadURL(snap.ref);
+  }
+
+  const callable = httpsCallable(functions, 'submitTrapForReview');
+  const res = await callable({
+    name: input.name,
+    creators: input.creators,
+    minigame: input.minigame,
+    type: input.type,
+    dateInvented: input.dateInvented,
+    youtubeUrl: input.youtubeUrl,
+    description: input.description ?? '',
+    thumbnailUrl,
+  });
+  return res.data as { id: string };
 }

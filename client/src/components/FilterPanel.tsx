@@ -44,18 +44,27 @@ const FilterPanel: React.FC<Props> = ({ value, onChange, cardLightness = 0.04 })
   const theme = useTheme();
   const sectionAlpha = Math.max(0, Math.min(0.16, cardLightness));
   const borderAlpha = Math.min(sectionAlpha + 0.02, 0.18);
-  const surfaceBg = alpha(theme.palette.light.main, sectionAlpha);
+  const surfaceBg = theme.palette.dark.main;
   const surfaceBorder = alpha(theme.palette.light.main, borderAlpha);
-  const frameBg = alpha(theme.palette.dark.main, 0.4);
+  const frameBg = theme.palette.mode === 'light' ? '#ECECED' : '#262628';
   const frameDivider = alpha(theme.palette.light.main, 0.06);
   const outerBorder = alpha(theme.palette.light.main, 0.12);
   const sectionMinHeight = 116;
   const sectionContentRowSx = { alignItems: 'center', minHeight: 44 } as const;
 
+  const cardBaseSx = {
+    p: 2,
+    borderColor: surfaceBorder,
+    bgcolor: surfaceBg,
+    minHeight: sectionMinHeight,
+    borderRadius: 2,
+    boxShadow: '0 2px 8px rgba(0,0,0,0.22)'
+  } as const;
+
   const [fromDate, setFromDate] = React.useState<Date | null>(null);
   const [toDate, setToDate] = React.useState<Date | null>(null);
   const [dateDirection, setDateDirection] = React.useState<'asc' | 'desc' | undefined>(undefined);
-
+  
   const [tiers, setTiers] = React.useState<TierLetter[]>([]);
   const [tierDirection, setTierDirection] = React.useState<'asc' | 'desc' | undefined>(undefined);
 
@@ -86,7 +95,7 @@ const FilterPanel: React.FC<Props> = ({ value, onChange, cardLightness = 0.04 })
   }, [fromDate, toDate, dateDirection, tiers, tierDirection, minigames, types]);
 
   return (
-    <Paper elevation={0} sx={{ border: `1px solid ${outerBorder}`, borderRadius: 2, bgcolor: theme.palette.dark.main }}>
+    <Paper elevation={0} sx={{ border: `1px solid ${outerBorder}`, borderRadius: 2, bgcolor: frameBg }}>
       <Box sx={{ pr: 2, pl: 2, pt: 1.5, pb: 1.5, borderBottom: `1px solid ${frameDivider}` }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between">
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
@@ -129,20 +138,21 @@ const FilterPanel: React.FC<Props> = ({ value, onChange, cardLightness = 0.04 })
             pt: 2,
             px: 2,
             pb: 2,
-            bgcolor: theme.palette.dark.main,
+            bgcolor: frameBg,
             '& .MuiButton-root, & .MuiToggleButton-root': {
               textTransform: 'none'
             }
           }}
         >
           <Stack spacing={2.5}>
-            <Paper elevation={0} variant="outlined" sx={{ p: 2, borderColor: surfaceBorder, bgcolor: surfaceBg, minHeight: sectionMinHeight }}>
+            <Paper elevation={0} variant="outlined" sx={cardBaseSx}>
               <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>Date Invented</Typography>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={sectionContentRowSx}>
                 <DatePicker
                   label="From"
                   value={fromDate}
                   onChange={(val: Date | null) => setFromDate(val)}
+                  disableFuture
                   slotProps={{
                     textField: {
                       size: 'small',
@@ -161,6 +171,7 @@ const FilterPanel: React.FC<Props> = ({ value, onChange, cardLightness = 0.04 })
                   label="To"
                   value={toDate}
                   onChange={(val: Date | null) => setToDate(val)}
+                  disableFuture
                   slotProps={{
                     textField: {
                       size: 'small',
@@ -195,7 +206,7 @@ const FilterPanel: React.FC<Props> = ({ value, onChange, cardLightness = 0.04 })
               </Stack>
             </Paper>
 
-            <Paper elevation={0} variant="outlined" sx={{ p: 2, borderColor: surfaceBorder, bgcolor: surfaceBg, minHeight: sectionMinHeight }}>
+            <Paper elevation={0} variant="outlined" sx={cardBaseSx}>
               <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>Tierlist Rating</Typography>
               <Stack direction="row" spacing={1} flexWrap="wrap" sx={sectionContentRowSx}>
                 <ToggleButtonGroup
@@ -243,7 +254,7 @@ const FilterPanel: React.FC<Props> = ({ value, onChange, cardLightness = 0.04 })
               </Stack>
             </Paper>
 
-            <Paper elevation={0} variant="outlined" sx={{ p: 2, borderColor: surfaceBorder, bgcolor: surfaceBg, minHeight: sectionMinHeight }}>
+            <Paper elevation={0} variant="outlined" sx={cardBaseSx}>
               <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>Minigame</Typography>
               <Stack direction="row" sx={sectionContentRowSx}>
                 <ToggleButtonGroup
@@ -262,7 +273,7 @@ const FilterPanel: React.FC<Props> = ({ value, onChange, cardLightness = 0.04 })
               </Stack>
             </Paper>
 
-            <Paper elevation={0} variant="outlined" sx={{ p: 2, borderColor: surfaceBorder, bgcolor: surfaceBg, minHeight: sectionMinHeight }}>
+            <Paper elevation={0} variant="outlined" sx={cardBaseSx}>
               <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>Type</Typography>
               <Stack direction="row" sx={sectionContentRowSx}>
                 <ToggleButtonGroup

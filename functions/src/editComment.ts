@@ -23,7 +23,7 @@ export const editComment = onCall(async (request) => {
   })?.token?.firebase?.sign_in_provider;
 
   if (!uid) {
-    throw new HttpsError("unauthenticated", "Sign in to edit.");
+    throw new HttpsError("unauthenticated", "Log in to edit.");
   }
   if (provider === "anonymous") {
     throw new HttpsError("permission-denied", "Anon not allowed.");

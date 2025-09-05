@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Button, Paper, Stack, Typography, IconButton, Avatar } from '@mui/material';
-import { AccountCircle, DarkMode, LightMode, Logout, BlurOn, BlurOff, RateReview } from '@mui/icons-material';
+import { AccountCircle, DarkMode, LightMode, Logout, BlurOn, BlurOff, RateReview, Upload } from '@mui/icons-material';
 import { alpha, useTheme } from '@mui/material/styles';
 import Logo from './icons/logo';
 import { Link as RouterLink } from 'react-router-dom';
@@ -44,8 +44,23 @@ const Navbar: React.FC<NavbarProps> = ({ mode = 'light', onToggleTheme }) => {
   const surfaceBg = alpha(theme.palette.light.main, 0.06);
   const surfaceBorder = alpha(theme.palette.light.main, 0.12);
   const hoverBg = alpha(theme.palette.light.main, 0.1);
-  const { currentUser, logout } = useAuth();
+  const { currentUser, loading, logout } = useAuth();
   const appUser = currentUser as AppUser | null;
+
+  const [adminCached, setAdminCached] = React.useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem('isAdmin') === 'true';
+    } catch {}
+    return false;
+  });
+
+  React.useEffect(() => {
+    try {
+      const isAdmin = appUser?.admin === true;
+      window.localStorage.setItem('isAdmin', String(isAdmin));
+      setAdminCached(isAdmin);
+    } catch {}
+  }, [appUser?.admin]);
 
   const [particlesEnabled, setParticlesEnabled] = React.useState<boolean>(() => {
     try {
@@ -210,7 +225,7 @@ const Navbar: React.FC<NavbarProps> = ({ mode = 'light', onToggleTheme }) => {
             >
               {particlesEnabled ? <BlurOn fontSize="small" /> : <BlurOff fontSize="small" />}
             </IconButton>
-            {appUser?.admin && (
+            {(appUser?.admin || (loading && adminCached)) && (
               <Button
                 color="inherit"
                 component={RouterLink}
@@ -230,6 +245,28 @@ const Navbar: React.FC<NavbarProps> = ({ mode = 'light', onToggleTheme }) => {
                 }}
               >
                 Review Traps
+              </Button>
+            )}
+            {currentUser && (
+              <Button
+                color="inherit"
+                component={RouterLink}
+                to="/upload-trap"
+                variant="outlined"
+                startIcon={
+                  <Upload sx={{ mt: 0.25, width: 20, height: 20 }} />
+                }
+                sx={{
+                  minWidth: 96,
+                  px: 1.5,
+                  height: 36,
+                  borderColor: surfaceBorder,
+                  bgcolor: alpha(theme.palette.light.main, 0.04),
+                  transition: 'transform 0.2s ease',
+                  '&:hover': { bgcolor: hoverBg, borderColor: alpha(theme.palette.light.main, 0.2), transform: 'translateY(-1px)' }
+                }}
+              >
+                Upload Trap
               </Button>
             )}
             {currentUser && (

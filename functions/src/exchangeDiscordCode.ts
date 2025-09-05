@@ -143,7 +143,8 @@ export const exchangeDiscordCode = onCall({
       new HttpsError("internal", "Discord user fetch failed");
   }
 
-  const username = userJson.global_name || userJson.username || null;
+  const accountUsername = userJson.username || null;
+  const display = userJson.global_name || accountUsername;
   const email = userJson.email || null;
   const cdn = "https://cdn.discordapp.com/avatars";
   const avatar: string | null = userJson.avatar ?
@@ -191,10 +192,10 @@ export const exchangeDiscordCode = onCall({
     }
     return {
       profile: {
-        displayName: username,
+        displayName: display,
         email,
         photoURL: avatar,
-        discordUsername: username,
+        discordUsername: accountUsername,
       },
     };
   }
@@ -226,7 +227,7 @@ export const exchangeDiscordCode = onCall({
     } catch {
       const created = await adminAuth.createUser({
         email,
-        displayName: username ?? undefined,
+        displayName: display ?? undefined,
         photoURL: avatar ?? undefined,
         emailVerified: true,
       });
@@ -278,7 +279,7 @@ export const exchangeDiscordCode = onCall({
       email?: string;
       emailVerified?: boolean;
     } = {};
-    if (username) updates.displayName = username;
+    if (display) updates.displayName = display;
     if (avatar) updates.photoURL = avatar;
     if (email) {
       updates.email = email;
@@ -310,16 +311,16 @@ export const exchangeDiscordCode = onCall({
         admin: false,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
-        discordUsername: username ?? null,
-        displayName: username ?? null,
+        discordUsername: accountUsername ?? null,
+        displayName: display ?? null,
         email: email ?? null,
         photoURL: avatar ?? null,
       }, {merge: true});
     } else {
       await userRef.set({
         updatedAt: FieldValue.serverTimestamp(),
-        discordUsername: username ?? null,
-        displayName: username ?? null,
+        discordUsername: accountUsername ?? null,
+        displayName: display ?? null,
         email: email ?? null,
         photoURL: avatar ?? null,
       }, {merge: true});
@@ -333,10 +334,10 @@ export const exchangeDiscordCode = onCall({
   return {
     customToken,
     profile: {
-      displayName: username,
+      displayName: display,
       email,
       photoURL: avatar,
-      discordUsername: username,
+      discordUsername: accountUsername,
     },
   };
 });

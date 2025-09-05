@@ -9,6 +9,7 @@ import CoalesceController from './components/CoalesceController';
 import ReviewTraps from './pages/review-traps';
 import DiscordCallback from './pages/discord-callback';
 import TrapDetailsPage from './pages/trap-details';
+import UploadTrap from './pages/upload-trap';
 
 const App: React.FC = () => {
   const [mode, setMode] = React.useState<AppThemeMode>(() => {
@@ -48,6 +49,7 @@ const App: React.FC = () => {
           <Route path="/review-traps" element={<ReviewTraps />} />
           <Route path="/auth/discord/callback" element={<DiscordCallback />} />
           <Route path="/trap/:id" element={<TrapDetailsPage />} />
+          <Route path="/upload-trap" element={<UploadTrap />} />
         </Routes>
       </BrowserRouter>
     </ThemeProvider>

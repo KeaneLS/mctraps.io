@@ -11,11 +11,12 @@ import {
   CircularProgress,
   ThemeProvider,
   CssBaseline,
+  TextField,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import Navbar from '../components/Navbar';
 import { darkTheme, lightTheme, AppThemeMode } from '../theme';
-import { readTrapById, readTrapComments, PaginatedComments, resolveUserProfiles, UserProfile, addComment, setCommentVote, readUserCommentVotes, editComment, softDeleteComment, setTrapRating } from '../firebase/dataAccess';
+import { readTrapById, readTrapInReviewById, readTrapComments, PaginatedComments, resolveUserProfiles, UserProfile, addComment, setCommentVote, readUserCommentVotes, editComment, softDeleteComment, setTrapRating, reviewTrap } from '../firebase/dataAccess';
 import Avatar from '@mui/material/Avatar';
 import InputBase from '@mui/material/InputBase';
 import { useAuth } from '../firebase/authContext';
@@ -66,6 +67,7 @@ const TrapDetailsPage: React.FC = () => {
   }, [mode]);
 
   const [trap, setTrap] = React.useState<any | null>(null);
+  const [isReviewTrap, setIsReviewTrap] = React.useState<boolean>(false);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -78,10 +80,13 @@ const TrapDetailsPage: React.FC = () => {
   const [editingDrafts, setEditingDrafts] = React.useState<Record<string, string>>({});
   const [menuAnchors, setMenuAnchors] = React.useState<Record<string, HTMLElement | null>>({});
   const [userVotes, setUserVotes] = React.useState<Record<string, 1 | -1 | 0>>({});
-  const { currentUser } = useAuth();
+  const { currentUser, loading: authLoading } = useAuth();
   const [composerProfile, setComposerProfile] = React.useState<UserProfile | null>(null);
   const [ratingChoice, setRatingChoice] = React.useState<'' | 'S' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F'>('');
   const [showRatingLoginPrompt, setShowRatingLoginPrompt] = React.useState(false);
+  const [reviewVerdict, setReviewVerdict] = React.useState<'' | 'accept' | 'deny'>('');
+  const [reviewReason, setReviewReason] = React.useState<string>('');
+  const [reviewSubmitting, setReviewSubmitting] = React.useState<boolean>(false);
   const TierByLetter: Record<'S'|'A'|'B'|'C'|'D'|'E'|'F', React.FC<{ size?: number }>> = React.useMemo(() => ({
     S: TierS,
     A: TierA,
@@ -251,9 +256,20 @@ const TrapDetailsPage: React.FC = () => {
 
       try {
         const t = await readTrapById(trapId);
-        if (!cancelled) setTrap(t);
+        if (!cancelled) {
+          setTrap(t);
+          setIsReviewTrap(false);
+        }
       } catch (e) {
-        if (!cancelled && !trap) setError((e as Error).message);
+        try {
+          const t2 = await readTrapInReviewById(trapId);
+          if (!cancelled) {
+            setTrap(t2);
+            setIsReviewTrap(true);
+          }
+        } catch (e2) {
+          if (!cancelled && !trap) setError((e2 as Error).message);
+        }
       } finally {
         if (!cancelled && !trap) setLoading(false);
       }
@@ -325,22 +341,6 @@ const TrapDetailsPage: React.FC = () => {
     }
   }, [trapId]);
 
-  if (loading && !trap) {
-    return (
-      <Box sx={{ display: 'grid', placeItems: 'center', minHeight: '60vh' }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  if (error || !trap) {
-    return (
-      <Box sx={{ display: 'grid', placeItems: 'center', minHeight: '60vh' }}>
-        <Typography variant="body1">Failed to load trap.</Typography>
-      </Box>
-    );
-  }
-
   const countForTier = (trap?.tierlistRating?.count ?? trap?.rating?.count ?? 0) as number;
   const avgForTier = (countForTier > 0
     ? (trap?.tierlistRating?.average ?? trap?.rating?.average ?? 0)
@@ -356,6 +356,22 @@ const TrapDetailsPage: React.FC = () => {
       <CssBaseline />
       <Navbar mode={mode} onToggleTheme={toggleMode} />
       <Box sx={{ height: 96 }} />
+      {loading && !trap ? (
+        <Box sx={{ display: 'grid', placeItems: 'center', minHeight: '60vh' }}>
+          <CircularProgress />
+        </Box>
+      ) : (error || !trap) ? (
+        <Box sx={{ display: 'grid', placeItems: 'center', minHeight: '60vh' }}>
+          <Typography variant="body1">Failed to load trap.</Typography>
+        </Box>
+      ) : (
+      <>
+      {isReviewTrap && !authLoading && (!currentUser || !currentUser.admin) && (
+        <Box sx={{ display: 'grid', placeItems: 'center', minHeight: '40vh' }}>
+          <Typography variant="body1">Admins only.</Typography>
+        </Box>
+      )}
+      {(!isReviewTrap || (currentUser && currentUser.admin)) && (
       <Box sx={{
         maxWidth: 1040,
         mx: 'auto',
@@ -413,6 +429,8 @@ const TrapDetailsPage: React.FC = () => {
             <Stack spacing={1}>
               <Typography variant="h5">Details</Typography>
               <Divider sx={{ borderColor: surfaceBorder }} />
+              {!isReviewTrap && (
+              <>
               <Stack direction="row" alignItems="center" spacing={1}>
                 <Typography variant="body1"><strong>Tier:</strong></Typography>
                 {countForTier > 0 && <Tier size={24} />}
@@ -479,7 +497,6 @@ const TrapDetailsPage: React.FC = () => {
                     },
                   }}
                 >
-                  {/* Intentionally no placeholder menu item; title is renderValue */}
                   {(['S','A','B','C','D','E','F'] as const).map((t) => {
                     const Comp = TierByLetter[t];
                     return (
@@ -571,20 +588,174 @@ const TrapDetailsPage: React.FC = () => {
                       onClick={() => navigate('/login')}
                       sx={{ color: currentTheme.palette.brand.main, fontWeight: 700, cursor: 'pointer' }}
                     >
-                      Sign in
+                      Log in
                     </Box>
                     {` to rate traps`}
                   </Typography>
                 )}
               </Stack>
+              </>
+              )}
               <Typography variant="body1"><strong>Creators:</strong> {Array.isArray(trap.creators) ? trap.creators.join(', ') : ''}</Typography>
               <Typography variant="body1"><strong>Date Invented:</strong> {trap.dateInvented}</Typography>
               <Typography variant="body1"><strong>Minigame:</strong> {trap.minigame}</Typography>
               <Typography variant="body1"><strong>Type:</strong> {trap.type}</Typography>
             </Stack>
           </Paper>
+          {isReviewTrap && currentUser?.admin && (
+            <Paper elevation={0} sx={{ flex: 1, p: 1.25, borderRadius: 2, bgcolor: surfaceBg, border: `1px solid ${surfaceBorder}` }}>
+              <Stack spacing={1.25}>
+                <Typography variant="h5">Admin Review</Typography>
+                <Divider sx={{ borderColor: surfaceBorder }} />
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+                  <Select
+                    size="small"
+                    displayEmpty
+                    value={reviewVerdict}
+                    onChange={(e) => setReviewVerdict((e.target.value as any) || '')}
+                    renderValue={(selected) => (
+                      selected ? (
+                        <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center' }}>
+                          {selected === 'accept' ? 'Accept' : 'Deny'}
+                        </Typography>
+                      ) : (
+                        <Typography variant="body2">Review Trap</Typography>
+                      )
+                    )}
+                    sx={{
+                      minWidth: 140,
+                      height: 36,
+                      px: 1,
+                      borderRadius: 2,
+                      boxShadow: 'none',
+                      bgcolor: alpha(currentTheme.palette.light.main, 0.04),
+                      transition: 'transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease',
+                      '&:hover': {
+                        transform: 'translateY(-1px)',
+                        bgcolor: alpha(currentTheme.palette.light.main, 0.1),
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderColor: alpha(currentTheme.palette.light.main, 0.2),
+                        },
+                      },
+                      '& .MuiSelect-select': {
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        py: 0,
+                        height: 34,
+                        lineHeight: '34px',
+                      },
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        border: `1px solid ${surfaceBorder}`,
+                      },
+                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                        borderColor: alpha(currentTheme.palette.light.main, 0.2),
+                      },
+                      '&.Mui-disabled': {
+                        bgcolor: alpha(currentTheme.palette.light.main, 0.14),
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderColor: alpha(currentTheme.palette.light.main, 0.18),
+                        },
+                        color: currentTheme.palette.light.main,
+                        transform: 'none',
+                      },
+                    }}
+                  >
+                    {(['accept','deny'] as const).map((t) => (
+                      <MenuItem
+                        key={t}
+                        value={t}
+                        sx={{
+                          '&.Mui-selected': {
+                            bgcolor: mode === 'dark'
+                              ? alpha(currentTheme.palette.light.main, 0.14)
+                              : alpha(currentTheme.palette.dark.main, 0.14),
+                            color: mode === 'dark'
+                              ? currentTheme.palette.light.main
+                              : currentTheme.palette.dark.main,
+                          },
+                          '&.Mui-selected:hover': {
+                            bgcolor: mode === 'dark'
+                              ? alpha(currentTheme.palette.light.main, 0.18)
+                              : alpha(currentTheme.palette.dark.main, 0.18),
+                          },
+                        }}
+                      >
+                        <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>{t}</Typography>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </Stack>
+                {reviewVerdict === 'deny' && (
+                  <TextField
+                    fullWidth
+                    value={reviewReason}
+                    onChange={(e) => setReviewReason(e.target.value)}
+                    placeholder="Reason for denial"
+                    variant="outlined"
+                    multiline
+                    minRows={3}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        '& fieldset': { borderColor: alpha(currentTheme.palette.light.main, 0.35) },
+                        '&:hover fieldset': { borderColor: alpha(currentTheme.palette.light.main, 0.55) },
+                        '&.Mui-focused fieldset': { borderColor: currentTheme.palette.light.main },
+                      },
+                    }}
+                  />
+                )}
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <Button
+                    variant="outlined"
+                    color="brand"
+                    disabled={reviewSubmitting || !reviewVerdict || (reviewVerdict === 'deny' && !reviewReason.trim())}
+                    onClick={async () => {
+                      if (!trapId || !reviewVerdict) return;
+                      try {
+                        setReviewSubmitting(true);
+                        const res = await reviewTrap({ trapId, verdict: reviewVerdict as 'accept'|'deny', reason: reviewVerdict === 'deny' ? reviewReason.trim() : undefined });
+                        if (res.status === 'accepted') {
+                          setIsReviewTrap(false);
+                        } else {
+                          navigate('/review-traps');
+                        }
+                      } finally {
+                        setReviewSubmitting(false);
+                      }
+                    }}
+                    sx={{
+                      minWidth: 120,
+                      px: 2,
+                      height: 40,
+                      color: 'dark.main',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      border: `1px solid ${alpha(currentTheme.palette.brand.main, 0.45)}`,
+                      bgcolor: currentTheme.palette.brand.main,
+                      boxShadow: 'none',
+                      textTransform: 'none',
+                      transition: 'transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease',
+                      '&:hover': {
+                        transform: 'translateY(-1px)',
+                        borderColor: alpha(currentTheme.palette.brand.main, 0.6),
+                      },
+                      '&:active': {
+                        transform: 'translateY(0)',
+                      },
+                      '&:focus-visible': {
+                        outline: `2px solid ${alpha(currentTheme.palette.brand.main, 0.6)}`,
+                        outlineOffset: '2px',
+                      },
+                    }}
+                  >
+                    {reviewSubmitting ? 'Submitting…' : 'Submit'}
+                  </Button>
+                </Box>
+              </Stack>
+            </Paper>
+          )}
         </Stack>
-
+        {!isReviewTrap && (
         <Paper elevation={0} sx={{ p: 1.25, borderRadius: 2, bgcolor: surfaceBg, border: `1px solid ${surfaceBorder}` }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between">
             <Typography variant="h5">Comments</Typography>
@@ -654,7 +825,7 @@ const TrapDetailsPage: React.FC = () => {
                         onClick={() => navigate('/login')}
                         sx={{ color: currentTheme.palette.brand.main, fontWeight: 700, cursor: 'pointer' }}
                       >
-                        Sign in
+                        Log in
                       </Box>
                       {` to comment`}
                     </>
@@ -763,7 +934,7 @@ const TrapDetailsPage: React.FC = () => {
                           {new Date(top.createdAt).toLocaleString()}
                         </Typography>
                       )}
-                      {currentUser && top.authorId === currentUser.uid && top.status !== 'deleted' && (
+                      {currentUser && top.status !== 'deleted' && (top.authorId === currentUser.uid || currentUser?.admin) && (
                         <>
                           <IconButton
                             size="small"
@@ -776,10 +947,12 @@ const TrapDetailsPage: React.FC = () => {
                             open={Boolean(menuAnchors[top.id])}
                             onClose={() => setMenuAnchors((p) => ({ ...p, [top.id]: null }))}
                           >
-                            <MenuItem onClick={() => {
-                              setEditingDrafts((p) => ({ ...p, [top.id]: comments.byId[top.id]?.body || '' }));
-                              setMenuAnchors((p) => ({ ...p, [top.id]: null }));
-                            }}>Edit</MenuItem>
+                            {(currentUser && top.authorId === currentUser.uid) && (
+                              <MenuItem onClick={() => {
+                                setEditingDrafts((p) => ({ ...p, [top.id]: comments.byId[top.id]?.body || '' }));
+                                setMenuAnchors((p) => ({ ...p, [top.id]: null }));
+                              }}>Edit</MenuItem>
+                            )}
                             <MenuItem onClick={() => {
                               if (!trapId) return;
                               const prev = comments.byId[top.id];
@@ -1011,7 +1184,7 @@ const TrapDetailsPage: React.FC = () => {
                                     {new Date(r.createdAt).toLocaleString()}
                                   </Typography>
                                 )}
-                                {currentUser && r.authorId === currentUser.uid && r.status !== 'deleted' && (
+                                {currentUser && r.status !== 'deleted' && (r.authorId === currentUser.uid || currentUser?.admin) && (
                                   <>
                                     <IconButton
                                       size="small"
@@ -1024,10 +1197,12 @@ const TrapDetailsPage: React.FC = () => {
                                       open={Boolean(menuAnchors[r.id])}
                                       onClose={() => setMenuAnchors((p) => ({ ...p, [r.id]: null }))}
                                     >
-                                      <MenuItem onClick={() => {
-                                        setEditingDrafts((p) => ({ ...p, [r.id]: comments.byId[r.id]?.body || '' }));
-                                        setMenuAnchors((p) => ({ ...p, [r.id]: null }));
-                                      }}>Edit</MenuItem>
+                                      {(currentUser && r.authorId === currentUser.uid) && (
+                                        <MenuItem onClick={() => {
+                                          setEditingDrafts((p) => ({ ...p, [r.id]: comments.byId[r.id]?.body || '' }));
+                                          setMenuAnchors((p) => ({ ...p, [r.id]: null }));
+                                        }}>Edit</MenuItem>
+                                      )}
                                       <MenuItem onClick={() => {
                                         if (!trapId) return;
                                         const prev = comments.byId[r.id];
@@ -1267,8 +1442,12 @@ const TrapDetailsPage: React.FC = () => {
             )}
           </Stack>
         </Paper>
+        )}
       </Stack>
     </Box>
+      )}
+      </>
+      )}
     </ThemeProvider>
   );
 };

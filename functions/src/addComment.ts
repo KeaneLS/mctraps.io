@@ -23,7 +23,7 @@ export const addComment = onCall(async (request) => {
   })?.token?.firebase?.sign_in_provider;
 
   if (!uid) {
-    throw new HttpsError("unauthenticated", "Sign in to comment.");
+    throw new HttpsError("unauthenticated", "Log in to comment.");
   }
   if (provider === "anonymous") {
     throw new HttpsError("permission-denied", "Anonymous not allowed.");

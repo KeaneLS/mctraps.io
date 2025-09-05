@@ -7,6 +7,8 @@ import {setCommentVote} from "./setCommentVote";
 import {editComment} from "./editComment";
 import {softDeleteComment} from "./softDeleteComment";
 import {setTrapRating} from "./setTrapRating";
+import {submitTrapForReview} from "./submitTrapForReview";
+import {reviewTrap} from "./reviewTrap";
 if (getApps().length === 0) {
   initializeApp();
 }
@@ -19,3 +21,5 @@ export {setCommentVote};
 export {editComment};
 export {softDeleteComment};
 export {setTrapRating};
+export {submitTrapForReview};
+export {reviewTrap};

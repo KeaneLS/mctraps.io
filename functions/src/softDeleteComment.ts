@@ -20,9 +20,12 @@ export const softDeleteComment = onCall(async (request) => {
   const provider = (request.auth as unknown as {
     token?: {firebase?: {sign_in_provider?: string}};
   })?.token?.firebase?.sign_in_provider;
+  const tokenAdmin = Boolean(
+    (request.auth as unknown as {token?: {admin?: boolean}})?.token?.admin
+  );
 
   if (!uid) {
-    throw new HttpsError("unauthenticated", "Sign in to delete.");
+    throw new HttpsError("unauthenticated", "Log in to delete.");
   }
   if (provider === "anonymous") {
     throw new HttpsError("permission-denied", "Anon not allowed.");
@@ -39,6 +42,15 @@ export const softDeleteComment = onCall(async (request) => {
     .collection("traps").doc(trapId)
     .collection("comments").doc(commentId);
 
+  let isAdmin = tokenAdmin;
+  if (!isAdmin) {
+    try {
+      const userDoc = await db.collection("users").doc(uid).get();
+      isAdmin = userDoc.exists ? Boolean(userDoc.get("admin")) : false;
+    } catch {
+    }
+  }
+
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(commentRef);
     if (!snap.exists) {
@@ -50,7 +62,7 @@ export const softDeleteComment = onCall(async (request) => {
       depth?: number;
       threadId?: string;
     };
-    if (data.authorId !== uid) {
+    if (data.authorId !== uid && !isAdmin) {
       throw new HttpsError("permission-denied", "Not owner.");
     }
     // UI filters out on read

@@ -2,7 +2,7 @@
 import {onCall, HttpsError} from "firebase-functions/https";
 import {initializeApp, getApps} from "firebase-admin/app";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
-import {getAuth as getAdminAuth} from "firebase-admin/auth";
+// import {getAuth as getAdminAuth} from "firebase-admin/auth";
 import {enforceRateLimit} from "./rateLimit";
 
 if (getApps().length === 0) {
@@ -36,21 +36,12 @@ export const verifyDiscord = onCall(async (request) => {
     discordUsername: providedUsername,
   } = (request.data ?? {}) as VerifyPayload;
 
-  let discordUsername = providedUsername ?? displayName ?? null;
+  const discordUsername = providedUsername ?? null;
   const authToken = (request.auth as unknown as {
     token?: {firebase?: {sign_in_provider?: string}};
   }) || {};
   const signInProvider = authToken?.token?.firebase?.sign_in_provider;
   const isAnonymous = signInProvider === "anonymous";
-  if (!discordUsername) {
-    try {
-      const adminAuth = getAdminAuth();
-      const rec = await adminAuth.getUser(uid);
-      discordUsername = rec.displayName ?? null;
-    } catch (err) {
-      discordUsername = discordUsername ?? null;
-    }
-  }
 
   const userRef = db.collection("users").doc(uid);
   const snap = await userRef.get();
@@ -86,8 +77,8 @@ export const verifyDiscord = onCall(async (request) => {
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
     discordUsername: discordUsername ?? null,
-    displayName: ((): string | null => {
-      const name = discordUsername ?? displayName ?? null;
+    displayName: (() => {
+      const name = displayName ?? null;
       return name;
     })(),
     email: email ?? null,

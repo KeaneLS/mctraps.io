@@ -22,7 +22,7 @@ export const setTrapRating = onCall(async (request) => {
   })?.token?.firebase?.sign_in_provider;
 
   if (!uid) {
-    throw new HttpsError("unauthenticated", "Sign in to rate traps.");
+    throw new HttpsError("unauthenticated", "Log in to rate traps.");
   }
   if (provider === "anonymous") {
     throw new HttpsError("permission-denied", "Anonymous not allowed.");
@@ -52,12 +52,16 @@ export const setTrapRating = onCall(async (request) => {
       tierlistRating?: {average?: number | null; count?: number};
     };
     const currentCount = Number(t?.tierlistRating?.count ?? 0);
-    const currentAvg = (currentCount > 0 && typeof t?.tierlistRating?.average === "number")
-      ? Number(t?.tierlistRating?.average)
-      : 0;
+    const hasAverage =
+      currentCount > 0 &&
+      typeof t?.tierlistRating?.average === "number";
+    const currentAvg = hasAverage ?
+      Number(t?.tierlistRating?.average) :
+      0;
 
     const prevSnap = await tx.get(ratingRef);
-    const prevVal = prevSnap.exists ? (prevSnap.get("value") as number) :
+    const prevVal = prevSnap.exists ?
+      (prevSnap.get("value") as number) :
       null;
 
     let nextCount = currentCount;
@@ -82,7 +86,10 @@ export const setTrapRating = onCall(async (request) => {
     const now = FieldValue.serverTimestamp();
     tx.set(ratingRef, {value, updatedAt: now});
     tx.update(trapRef, {
-      tierlistRating: {average: nextCount > 0 ? nextAvg : null, count: nextCount},
+      tierlistRating: {
+        average: nextCount > 0 ? nextAvg : null,
+        count: nextCount,
+      },
       lastActivityAt: now,
     });
 
