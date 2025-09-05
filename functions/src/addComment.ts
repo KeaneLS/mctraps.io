@@ -29,7 +29,7 @@ export const addComment = onCall(async (request) => {
     throw new HttpsError("permission-denied", "Anonymous not allowed.");
   }
 
-  await enforceRateLimit(uid, "addComment", 20, 60);
+  await enforceRateLimit(uid, "addComment", 12, 60);
 
   const {trapId, body, parentId} = (request.data ?? {}) as AddPayload;
   if (!trapId) throw new HttpsError("invalid-argument", "trapId req.");

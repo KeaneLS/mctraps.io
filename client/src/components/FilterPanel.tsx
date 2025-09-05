@@ -156,6 +156,7 @@ const FilterPanel: React.FC<Props> = ({ value, onChange, cardLightness = 0.04 })
                   slotProps={{
                     textField: {
                       size: 'small',
+                      inputProps: { maxLength: 10 },
                       sx: {
                         minWidth: 320,
                         '& .MuiOutlinedInput-root': { height: 36 },
@@ -175,6 +176,7 @@ const FilterPanel: React.FC<Props> = ({ value, onChange, cardLightness = 0.04 })
                   slotProps={{
                     textField: {
                       size: 'small',
+                      inputProps: { maxLength: 10 },
                       sx: {
                         minWidth: 320,
                         '& .MuiOutlinedInput-root': { height: 36 },

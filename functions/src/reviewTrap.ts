@@ -55,7 +55,7 @@ async function queueEmail(
       to,
       message: {subject, text, html: html || text},
     });
-  } catch {
+  } catch (err) {
   }
 }
 
@@ -65,7 +65,7 @@ export const reviewTrap = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "Log in as admin to review.");
   }
 
-  await enforceRateLimit(uid, "reviewTrap", 30, 60);
+  await enforceRateLimit(uid, "reviewTrap", 60, 60);
   await assertAdmin(uid);
 
   const {trapId, verdict, reason} = (request.data ?? {}) as ReviewPayload;
@@ -89,7 +89,6 @@ export const reviewTrap = onCall(async (request) => {
   const createdBy = (data?.createdBy as string) || null;
   const trapName = ((data?.name as string) || "the trap").toString();
 
-  // resolve publisher email
   let publisherEmail: string | null = null;
   if (createdBy) {
     try {
@@ -135,7 +134,6 @@ export const reviewTrap = onCall(async (request) => {
     return {status: "accepted", trapId};
   }
 
-  // deny
   const deniedRef = db.collection("deniedTraps").doc(trapId);
   const toWrite = {
     ...data,

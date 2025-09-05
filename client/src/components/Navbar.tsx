@@ -1,9 +1,9 @@
 import React from 'react';
-import { Box, Button, Paper, Stack, Typography, IconButton, Avatar } from '@mui/material';
+import { Box, Button, Paper, Stack, Typography, IconButton, Avatar, Snackbar, Alert, Grow } from '@mui/material';
 import { AccountCircle, DarkMode, LightMode, Logout, BlurOn, BlurOff, RateReview, Upload } from '@mui/icons-material';
 import { alpha, useTheme } from '@mui/material/styles';
 import Logo from './icons/logo';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAuth, AppUser } from '../firebase/authContext';
  
 
@@ -41,6 +41,7 @@ export interface NavbarProps {
 
 const Navbar: React.FC<NavbarProps> = ({ mode = 'light', onToggleTheme }) => {
   const theme = useTheme();
+  const navigate = useNavigate();
   const surfaceBg = alpha(theme.palette.light.main, 0.06);
   const surfaceBorder = alpha(theme.palette.light.main, 0.12);
   const hoverBg = alpha(theme.palette.light.main, 0.1);
@@ -89,6 +90,27 @@ const Navbar: React.FC<NavbarProps> = ({ mode = 'light', onToggleTheme }) => {
       } catch {}
       return next;
     });
+  }, []);
+
+  const [showUploadWarning, setShowUploadWarning] = React.useState(false);
+  const [globalToast, setGlobalToast] = React.useState<string | null>(null);
+  const [globalToastOpen, setGlobalToastOpen] = React.useState<boolean>(false);
+  const handleSnackbarClose = (
+    _event?: React.SyntheticEvent | Event,
+    reason?: string
+  ) => {
+    if (reason === 'clickaway') return;
+    setShowUploadWarning(false);
+  };
+
+  React.useEffect(() => {
+    let msg: string | null = null;
+    try { msg = window.localStorage.getItem('globalToast'); } catch {}
+    if (msg) {
+      setGlobalToast(msg);
+      setGlobalToastOpen(true);
+      try { window.localStorage.removeItem('globalToast'); } catch {}
+    }
   }, []);
 
   return (
@@ -250,11 +272,17 @@ const Navbar: React.FC<NavbarProps> = ({ mode = 'light', onToggleTheme }) => {
             {currentUser && (
               <Button
                 color="inherit"
-                component={RouterLink}
-                to="/upload-trap"
                 variant="outlined"
+                onClick={(e) => {
+                  if (appUser && !appUser.displayName) {
+                    e.preventDefault();
+                    setShowUploadWarning(true);
+                  } else {
+                    navigate('/upload-trap');
+                  }
+                }}
                 startIcon={
-                  <Upload sx={{ mt: 0.25, width: 20, height: 20 }} />
+                  <Upload sx={{ width: 20, height: 20, transform: 'translateX(0.7px) translateY(-0.3px)' }} />
                 }
                 sx={{
                   minWidth: 96,
@@ -296,6 +324,68 @@ const Navbar: React.FC<NavbarProps> = ({ mode = 'light', onToggleTheme }) => {
           </Stack>
         </Stack>
       </Paper>
+      <Snackbar
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        open={showUploadWarning}
+        autoHideDuration={10000}
+        onClose={handleSnackbarClose}
+        sx={{ pointerEvents: 'auto' }}
+        TransitionComponent={Grow}
+      >
+        <Alert
+          severity="info"
+          icon={false}
+          onClick={() => setShowUploadWarning(false)}
+          sx={{
+            bgcolor: theme.palette.background.paper,
+            border: `1px solid ${surfaceBorder}`,
+            color: 'text.primary',
+            display: 'inline-flex'
+          }}
+        >
+          <Typography variant="body1" sx={{ whiteSpace: 'nowrap' }}>
+            <Box
+              component="span"
+              onClick={(e: any) => { e.stopPropagation(); navigate('/profile'); }}
+              sx={{ color: theme.palette.brand.main, fontWeight: 700, cursor: 'pointer', textDecoration: 'none' }}
+            >
+              Create a username
+            </Box>
+            {` to upload traps`}
+          </Typography>
+        </Alert>
+      </Snackbar>
+
+      <Snackbar
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        open={globalToastOpen}
+        autoHideDuration={20000}
+        onClose={(_e, reason) => {
+          if (reason === 'clickaway') return;
+          setGlobalToastOpen(false);
+        }}
+        sx={{ pointerEvents: 'auto' }}
+        TransitionComponent={Grow}
+        TransitionProps={{ onExited: () => { setGlobalToast(null); } }}
+      >
+        <Alert
+          severity="info"
+          icon={false}
+          onClick={() => setGlobalToastOpen(false)}
+          sx={{
+            bgcolor: theme.palette.background.paper,
+            border: `1px solid ${surfaceBorder}`,
+            color: 'text.primary',
+            display: 'inline-flex',
+            maxWidth: 560,
+            width: '100%'
+          }}
+        >
+          <Typography variant="body1" sx={{ whiteSpace: 'normal' }}>
+            {globalToast}
+          </Typography>
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

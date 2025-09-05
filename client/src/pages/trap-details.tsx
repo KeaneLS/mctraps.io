@@ -16,7 +16,7 @@ import {
 import { alpha } from '@mui/material/styles';
 import Navbar from '../components/Navbar';
 import { darkTheme, lightTheme, AppThemeMode } from '../theme';
-import { readTrapById, readTrapInReviewById, readTrapComments, PaginatedComments, resolveUserProfiles, UserProfile, addComment, setCommentVote, readUserCommentVotes, editComment, softDeleteComment, setTrapRating, reviewTrap } from '../firebase/dataAccess';
+import { readTrapById, readTrapInReviewById, readTrapComments, PaginatedComments, resolveUserProfiles, UserProfile, addComment, setCommentVote, readUserCommentVotes, editComment, softDeleteComment, setTrapRating, reviewTrap, readUserTrapRating } from '../firebase/dataAccess';
 import Avatar from '@mui/material/Avatar';
 import InputBase from '@mui/material/InputBase';
 import { useAuth } from '../firebase/authContext';
@@ -83,6 +83,8 @@ const TrapDetailsPage: React.FC = () => {
   const { currentUser, loading: authLoading } = useAuth();
   const [composerProfile, setComposerProfile] = React.useState<UserProfile | null>(null);
   const [ratingChoice, setRatingChoice] = React.useState<'' | 'S' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F'>('');
+  const [savedRatingValue, setSavedRatingValue] = React.useState<0 | 1 | 2 | 3 | 4 | 5 | 6 | null>(null);
+  const [ratingSubmitting, setRatingSubmitting] = React.useState<boolean>(false);
   const [showRatingLoginPrompt, setShowRatingLoginPrompt] = React.useState(false);
   const [reviewVerdict, setReviewVerdict] = React.useState<'' | 'accept' | 'deny'>('');
   const [reviewReason, setReviewReason] = React.useState<string>('');
@@ -112,6 +114,14 @@ const TrapDetailsPage: React.FC = () => {
     letter === 'C' ? 3 :
     letter === 'D' ? 2 :
     letter === 'E' ? 1 : 0
+  ), []);
+  const valueToLetter = React.useCallback((value: 0|1|2|3|4|5|6): 'S'|'A'|'B'|'C'|'D'|'E'|'F' => (
+    value === 6 ? 'S' :
+    value === 5 ? 'A' :
+    value === 4 ? 'B' :
+    value === 3 ? 'C' :
+    value === 2 ? 'D' :
+    value === 1 ? 'E' : 'F'
   ), []);
   const ensureComposerProfileInMap = React.useCallback(() => {
     if (!currentUser) return;
@@ -237,6 +247,328 @@ const TrapDetailsPage: React.FC = () => {
     .replace(/\s+/g, '')
     .toLowerCase();
 
+  // isolate composer to prevent full page re-renders while typing
+  const CommentComposer: React.FC = React.memo(() => {
+    const [text, setText] = React.useState<string>("");
+    const canCompose = Boolean(
+      currentUser && (composerProfile?.displayName || currentUser?.displayName)
+    );
+    return (
+      <Stack spacing={1.25} sx={{ mb: 1 }}>
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Avatar src={composerProfile?.photoURL || currentUser?.photoURL || undefined} sx={{ width: 32, height: 32 }} />
+          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0 }}>
+            <Typography variant="body1" noWrap>
+              {composerProfile?.displayName || currentUser?.displayName || 'You'}
+            </Typography>
+            {composerProfile?.discordUsername && (
+              <Stack direction="row" spacing={0.5} alignItems="center">
+                <VerifiedUser sx={{ color: currentTheme.palette.brand.main, height: 18, width: 18 }} />
+                <Typography variant="body1" sx={{ color: currentTheme.palette.brand.main, fontWeight: 700}}>
+                  {composerProfile.discordUsername}
+                </Typography>
+              </Stack>
+            )}
+          </Stack>
+        </Stack>
+        <Paper elevation={0} sx={{ p: 0.5, borderRadius: 2, bgcolor: alpha(currentTheme.palette.light.main, 0.02), border: `1px solid ${surfaceBorder}`, position: 'relative' }}>
+          <InputBase
+            placeholder={
+              (composerProfile?.displayName || currentUser?.displayName)
+                ? 'Add a comment…'
+                : (currentUser ? '' : '')
+            }
+            value={text}
+            inputProps={{ maxLength: 1000 }}
+            onChange={(e) => setText(e.target.value)}
+            disabled={!canCompose}
+            multiline
+            minRows={1}
+            sx={(theme) => ({
+              px: 1,
+              py: 0.5,
+              width: '100%',
+              '& .MuiInputBase-input::placeholder': {
+                ...theme.typography.body1,
+              },
+              '& .MuiInputBase-input': {
+                ...theme.typography.body1,
+              },
+              '& .MuiInputBase-inputMultiline': {
+                ...theme.typography.body1,
+              },
+            })}
+          />
+          {(!currentUser || !(composerProfile?.displayName || currentUser?.displayName)) && (
+            <Typography
+              variant="body1"
+              sx={{
+                position: 'absolute',
+                left: 12,
+                top: 10,
+                pointerEvents: 'auto',
+                opacity: 0.8,
+              }}
+            >
+              {(!currentUser) ? (
+                <>
+                  <Box
+                    component="span"
+                    onClick={() => navigate('/login')}
+                    sx={{ color: currentTheme.palette.brand.main, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Log in
+                  </Box>
+                  {` to comment`}
+                </>
+              ) : (
+                <>
+                  <Box
+                    component="span"
+                    onClick={() => navigate('/profile')}
+                    sx={{ color: currentTheme.palette.brand.main, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Create a username
+                  </Box>
+                  {` to comment`}
+                </>
+              )}
+            </Typography>
+          )}
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', px: 0.5, pb: 0.5 }}>
+            <Button
+              variant="outlined"
+              color="brand"
+              disabled={!canCompose || !text.trim()}
+              onClick={() => {
+                if (!trapId) return;
+                const body = text.trim();
+                if (!body) return;
+                const tempId = addOptimisticComment(body);
+                setText("");
+                if (!tempId) return;
+                addComment({ trapId: trapId, body })
+                  .then((res) => {
+                    replaceOptimisticCommentId(tempId, res.id, res.threadId);
+                  })
+                  .catch(() => {
+                    removeOptimisticComment(tempId);
+                  });
+              }}
+              sx={{
+                textTransform: 'none',
+                height: 36,
+                px: 1.25,
+                borderRadius: 2,
+                color: 'dark.main',
+                position: 'relative',
+                overflow: 'hidden',
+                border: `1px solid ${alpha(currentTheme.palette.brand.main, 0.45)}`,
+                bgcolor: currentTheme.palette.brand.main,
+                boxShadow: 'none',
+                transition: 'transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease',
+                '&:hover': {
+                  transform: 'translateY(-1px)',
+                  borderColor: alpha(currentTheme.palette.brand.main, 0.6),
+                },
+                '&:active': {
+                  transform: 'translateY(0)',
+                },
+                '&:focus-visible': {
+                  outline: `2px solid ${alpha(currentTheme.palette.brand.main, 0.6)}`,
+                  outlineOffset: '2px',
+                },
+                '&.Mui-disabled': {
+                  bgcolor: alpha(currentTheme.palette.light.main, 0.14),
+                  borderColor: alpha(currentTheme.palette.light.main, 0.18),
+                  color: currentTheme.palette.light.main,
+                  transform: 'none',
+                },
+              }}
+            >
+              Post
+            </Button>
+          </Box>
+        </Paper>
+      </Stack>
+    );
+  });
+
+  const ReplyComposer: React.FC<{
+    replyToId: string;
+    parentTopId: string;
+    initialText?: string;
+    onClose: () => void;
+  }> = React.memo(({ replyToId, parentTopId, initialText, onClose }) => {
+    const [text, setText] = React.useState<string>(initialText || '');
+    const canCompose = Boolean(
+      currentUser && (composerProfile?.displayName || currentUser?.displayName)
+    );
+    return (
+      <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+        <Avatar src={composerProfile?.photoURL || currentUser?.photoURL || undefined} sx={{ width: 24, height: 24 }} />
+        <Box sx={{ flex: 1 }}>
+          <Paper elevation={0} sx={{ p: 0.5, borderRadius: 1.5, bgcolor: alpha(currentTheme.palette.light.main, 0.02), border: `1px solid ${surfaceBorder}` }}>
+            <InputBase
+              placeholder="Add a reply…"
+              value={text}
+              inputProps={{ maxLength: 1000 }}
+              onChange={(e) => setText(e.target.value)}
+              multiline
+              minRows={1}
+              sx={(theme) => ({
+                px: 1,
+                py: 0.5,
+                width: '100%',
+                '& .MuiInputBase-input::placeholder': {
+                  ...theme.typography.body1,
+                },
+                '& .MuiInputBase-input': {
+                  ...theme.typography.body1,
+                },
+                '& .MuiInputBase-inputMultiline': {
+                  ...theme.typography.body1,
+                },
+              })}
+              disabled={!canCompose}
+            />
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', px: 0.5, pb: 0.5 }}>
+              <Button
+                variant="outlined"
+                color="brand"
+                disabled={!canCompose || !text.trim()}
+                onClick={() => {
+                  if (!trapId) return;
+                  const body = (text || '').trim();
+                  if (!body) return;
+                  const tempId = addOptimisticComment(body, parentTopId);
+                  onClose();
+                  if (!tempId) return;
+                  addComment({ trapId: trapId, body, parentId: replyToId })
+                    .then((res) => {
+                      replaceOptimisticCommentId(tempId, res.id, res.threadId);
+                    })
+                    .catch(() => {
+                      removeOptimisticComment(tempId);
+                    });
+                }}
+                sx={{
+                  textTransform: 'none',
+                  height: 32,
+                  px: 1,
+                  borderRadius: 2,
+                  color: 'dark.main',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  border: `1px solid ${alpha(currentTheme.palette.brand.main, 0.45)}`,
+                  bgcolor: currentTheme.palette.brand.main,
+                  boxShadow: 'none',
+                  transition: 'transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease',
+                  '&:hover': {
+                    transform: 'translateY(-1px)',
+                    borderColor: alpha(currentTheme.palette.brand.main, 0.6),
+                  },
+                  '&:active': {
+                    transform: 'translateY(0)',
+                  },
+                  '&:focus-visible': {
+                    outline: `2px solid ${alpha(currentTheme.palette.brand.main, 0.6)}`,
+                    outlineOffset: '2px',
+                  },
+                  '&.Mui-disabled': {
+                    bgcolor: alpha(currentTheme.palette.light.main, 0.14),
+                    borderColor: alpha(currentTheme.palette.light.main, 0.18),
+                    color: currentTheme.palette.light.main,
+                    transform: 'none',
+                  },
+                }}
+              >
+                Post
+              </Button>
+            </Box>
+          </Paper>
+        </Box>
+      </Stack>
+    );
+  });
+
+  const EditComposer: React.FC<{
+    commentId: string;
+    initialText: string;
+    onClose: () => void;
+  }> = React.memo(({ commentId, initialText, onClose }) => {
+    const [text, setText] = React.useState<string>(initialText || '');
+    return (
+      <Box sx={{ mt: 0.75 }}>
+        <Paper elevation={0} sx={{ p: 0.5, borderRadius: 1.5, bgcolor: alpha(currentTheme.palette.light.main, 0.02), border: `1px solid ${surfaceBorder}` }}>
+          <InputBase
+            value={text}
+            inputProps={{ maxLength: 1000 }}
+            onChange={(e) => setText(e.target.value)}
+            multiline
+            minRows={1}
+            sx={{ px: 1, py: 0.5, width: '100%' }}
+          />
+          <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end', px: 0.5, pb: 0.5 }}>
+            <Button
+              variant="outlined"
+              color="brand"
+              disabled={!text.trim()}
+              onClick={() => {
+                if (!trapId) return;
+                const value = (text || '').trim();
+                const prev = comments.byId[commentId];
+                onClose();
+                setComments((p) => ({ ...p, byId: { ...p.byId, [commentId]: { ...prev, body: value, status: 'edited' } as any } } as any));
+                editComment(trapId, commentId, value).catch(() => {
+                  setComments((p) => ({ ...p, byId: { ...p.byId, [commentId]: prev } } as any));
+                });
+              }}
+              sx={{
+                textTransform: 'none',
+                height: 36,
+                px: 1.25,
+                borderRadius: 2,
+                color: 'dark.main',
+                position: 'relative',
+                overflow: 'hidden',
+                border: `1px solid ${alpha(currentTheme.palette.brand.main, 0.45)}`,
+                bgcolor: currentTheme.palette.brand.main,
+                boxShadow: 'none',
+                transition: 'transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease',
+                '&:hover': {
+                  transform: 'translateY(-1px)',
+                  borderColor: alpha(currentTheme.palette.brand.main, 0.6),
+                },
+                '&:active': { transform: 'translateY(0)' },
+                '&:focus-visible': {
+                  outline: `2px solid ${alpha(currentTheme.palette.brand.main, 0.6)}`,
+                  outlineOffset: '2px',
+                },
+                '&.Mui-disabled': {
+                  bgcolor: alpha(currentTheme.palette.light.main, 0.14),
+                  borderColor: alpha(currentTheme.palette.light.main, 0.18),
+                  color: currentTheme.palette.light.main,
+                  transform: 'none',
+                },
+              }}
+            >
+              Post
+            </Button>
+            <Button
+              variant="text"
+              color="inherit"
+              onClick={onClose}
+              sx={{ textTransform: 'none', height: 36, px: 1 }}
+            >
+              Cancel
+            </Button>
+          </Stack>
+        </Paper>
+      </Box>
+    );
+  });
+
   React.useEffect(() => {
     let cancelled = false;
     const run = async () => {
@@ -340,6 +672,22 @@ const TrapDetailsPage: React.FC = () => {
       loadComments();
     }
   }, [trapId]);
+
+  React.useEffect(() => {
+    (async () => {
+      if (!trapId || !currentUser) {
+        setSavedRatingValue(null);
+        return;
+      }
+      try {
+        const v = await readUserTrapRating(trapId, currentUser.uid);
+        setSavedRatingValue(v as any);
+        if (typeof v === 'number') {
+          setRatingChoice(valueToLetter(v as 0|1|2|3|4|5|6));
+        }
+      } catch {}
+    })();
+  }, [trapId, currentUser, valueToLetter]);
 
   const countForTier = (trap?.tierlistRating?.count ?? trap?.rating?.count ?? 0) as number;
   const avgForTier = (countForTier > 0
@@ -530,7 +878,12 @@ const TrapDetailsPage: React.FC = () => {
                 <Button
                   variant="outlined"
                   color="brand"
-                  disabled={!ratingChoice}
+                  disabled={
+                    ratingSubmitting ||
+                    !ratingChoice ||
+                    (typeof savedRatingValue === 'number' &&
+                      letterToValue(ratingChoice as any) === savedRatingValue)
+                  }
                   onClick={async () => {
                     if (!trapId || !ratingChoice) return;
                     if (!currentUser) {
@@ -538,14 +891,17 @@ const TrapDetailsPage: React.FC = () => {
                       return;
                     }
                     try {
+                      setRatingSubmitting(true);
                       const res = await setTrapRating(trapId, letterToValue(ratingChoice as any));
                       setTrap((prev: any) => prev ? ({
                         ...prev,
                         tierlistRating: { average: res.average, count: res.count },
                       }) : prev);
-                      setRatingChoice('');
+                      setSavedRatingValue(letterToValue(ratingChoice as any));
                       setShowRatingLoginPrompt(false);
-                    } catch {}
+                    } catch {} finally {
+                      setRatingSubmitting(false);
+                    }
                   }}
                   sx={{
                     textTransform: 'none',
@@ -690,6 +1046,7 @@ const TrapDetailsPage: React.FC = () => {
                   <TextField
                     fullWidth
                     value={reviewReason}
+                    inputProps={{ maxLength: 500 }}
                     onChange={(e) => setReviewReason(e.target.value)}
                     placeholder="Reason for denial"
                     variant="outlined"
@@ -763,142 +1120,7 @@ const TrapDetailsPage: React.FC = () => {
           </Stack>
           <Divider sx={{ my: 1, borderColor: surfaceBorder }} />
 
-          <Stack spacing={1.25} sx={{ mb: 1 }}>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Avatar src={composerProfile?.photoURL || currentUser?.photoURL || undefined} sx={{ width: 32, height: 32 }} />
-              <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0 }}>
-                <Typography variant="body1" noWrap>
-                  {composerProfile?.displayName || currentUser?.displayName || 'You'}
-                </Typography>
-                {composerProfile?.discordUsername && (
-                  <Stack direction="row" spacing={0.5} alignItems="center">
-                  <VerifiedUser sx={{ color: currentTheme.palette.brand.main, height: 18, width: 18 }} />
-                  <Typography variant="body1" sx={{ color: currentTheme.palette.brand.main, fontWeight: 700}}>
-                    {composerProfile.discordUsername}
-                  </Typography>
-                </Stack>
-                )}
-              </Stack>
-            </Stack>
-            <Paper elevation={0} sx={{ p: 0.5, borderRadius: 2, bgcolor: alpha(currentTheme.palette.light.main, 0.02), border: `1px solid ${surfaceBorder}`, position: 'relative' }}>
-              <InputBase
-                placeholder={
-                  (composerProfile?.displayName || currentUser?.displayName)
-                    ? 'Add a comment…'
-                    : (currentUser ? '' : '')
-                }
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                disabled={!currentUser || !(composerProfile?.displayName || currentUser?.displayName)}
-                multiline
-                minRows={1}
-                sx={(theme) => ({
-                  px: 1,
-                  py: 0.5,
-                  width: '100%',
-                  '& .MuiInputBase-input::placeholder': {
-                    ...theme.typography.body1,
-                  },
-                  '& .MuiInputBase-input': {
-                    ...theme.typography.body1,
-                  },
-                  '& .MuiInputBase-inputMultiline': {
-                    ...theme.typography.body1,
-                  },
-                })}
-              />
-              {(!currentUser || !(composerProfile?.displayName || currentUser?.displayName)) && (
-                <Typography
-                  variant="body1"
-                  sx={{
-                    position: 'absolute',
-                    left: 12,
-                    top: 10,
-                    pointerEvents: 'auto',
-                    opacity: 0.8,
-                  }}
-                >
-                  {(!currentUser) ? (
-                    <>
-                      <Box
-                        component="span"
-                        onClick={() => navigate('/login')}
-                        sx={{ color: currentTheme.palette.brand.main, fontWeight: 700, cursor: 'pointer' }}
-                      >
-                        Log in
-                      </Box>
-                      {` to comment`}
-                    </>
-                  ) : (
-                    <>
-                      <Box
-                        component="span"
-                        onClick={() => navigate('/profile')}
-                        sx={{ color: currentTheme.palette.brand.main, fontWeight: 700, cursor: 'pointer' }}
-                      >
-                        Create a username
-                      </Box>
-                      {` to comment`}
-                    </>
-                  )}
-                </Typography>
-              )}
-              <Box sx={{ display: 'flex', justifyContent: 'flex-end', px: 0.5, pb: 0.5 }}>
-                <Button
-                  variant="outlined"
-                  color="brand"
-                  disabled={!currentUser || !(composerProfile?.displayName || currentUser?.displayName) || !newComment.trim()}
-                  onClick={() => {
-                    if (!trapId) return;
-                    const body = newComment.trim();
-                    if (!body) return;
-                    const tempId = addOptimisticComment(body);
-                    setNewComment("");
-                    if (!tempId) return;
-                    addComment({ trapId: trapId, body })
-                      .then((res) => {
-                        replaceOptimisticCommentId(tempId, res.id, res.threadId);
-                      })
-                      .catch(() => {
-                        removeOptimisticComment(tempId);
-                      });
-                  }}
-                  sx={{
-                    textTransform: 'none',
-                    height: 36,
-                    px: 1.25,
-                    borderRadius: 2,
-                    color: 'dark.main',
-                    position: 'relative',
-                    overflow: 'hidden',
-                    border: `1px solid ${alpha(currentTheme.palette.brand.main, 0.45)}`,
-                    bgcolor: currentTheme.palette.brand.main,
-                    boxShadow: 'none',
-                    transition: 'transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease',
-                    '&:hover': {
-                      transform: 'translateY(-1px)',
-                      borderColor: alpha(currentTheme.palette.brand.main, 0.6),
-                    },
-                    '&:active': {
-                      transform: 'translateY(0)',
-                    },
-                    '&:focus-visible': {
-                      outline: `2px solid ${alpha(currentTheme.palette.brand.main, 0.6)}`,
-                      outlineOffset: '2px',
-                    },
-                    '&.Mui-disabled': {
-                      bgcolor: alpha(currentTheme.palette.light.main, 0.14),
-                      borderColor: alpha(currentTheme.palette.light.main, 0.18),
-                      color: currentTheme.palette.light.main,
-                      transform: 'none',
-                    },
-                  }}
-                >
-                  Post
-                </Button>
-              </Box>
-            </Paper>
-          </Stack>
+          <CommentComposer />
 
           <Stack spacing={1.25}>
             {(() => {
@@ -967,72 +1189,11 @@ const TrapDetailsPage: React.FC = () => {
                       )}
                     </Stack>
                     {editingDrafts[top.id] !== undefined ? (
-                      <Box sx={{ mt: 0.75 }}>
-                        <Paper elevation={0} sx={{ p: 0.5, borderRadius: 1.5, bgcolor: alpha(currentTheme.palette.light.main, 0.02), border: `1px solid ${surfaceBorder}` }}>
-                          <InputBase
-                            value={editingDrafts[top.id]}
-                            onChange={(e) => setEditingDrafts((p) => ({ ...p, [top.id]: e.target.value }))}
-                            multiline
-                            minRows={1}
-                            sx={{ px: 1, py: 0.5, width: '100%' }}
-                          />
-                          <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end', px: 0.5, pb: 0.5 }}>
-                            <Button
-                              variant="outlined"
-                              color="brand"
-                              disabled={!editingDrafts[top.id]?.trim()}
-                              onClick={() => {
-                                if (!trapId) return;
-                                const value = (editingDrafts[top.id] || '').trim();
-                                const prev = comments.byId[top.id];
-                                setEditingDrafts((p) => { const n = { ...p }; delete n[top.id]; return n; });
-                                setComments((p) => ({ ...p, byId: { ...p.byId, [top.id]: { ...prev, body: value, status: 'edited' } as any } } as any));
-                                editComment(trapId, top.id, value).catch(() => {
-                                  setComments((p) => ({ ...p, byId: { ...p.byId, [top.id]: prev } } as any));
-                                });
-                              }}
-                              sx={{
-                                textTransform: 'none',
-                                height: 36,
-                                px: 1.25,
-                                borderRadius: 2,
-                                color: 'dark.main',
-                                position: 'relative',
-                                overflow: 'hidden',
-                                border: `1px solid ${alpha(currentTheme.palette.brand.main, 0.45)}`,
-                                bgcolor: currentTheme.palette.brand.main,
-                                boxShadow: 'none',
-                                transition: 'transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease',
-                                '&:hover': {
-                                  transform: 'translateY(-1px)',
-                                  borderColor: alpha(currentTheme.palette.brand.main, 0.6),
-                                },
-                                '&:active': { transform: 'translateY(0)' },
-                                '&:focus-visible': {
-                                  outline: `2px solid ${alpha(currentTheme.palette.brand.main, 0.6)}`,
-                                  outlineOffset: '2px',
-                                },
-                                '&.Mui-disabled': {
-                                  bgcolor: alpha(currentTheme.palette.light.main, 0.14),
-                                  borderColor: alpha(currentTheme.palette.light.main, 0.18),
-                                  color: currentTheme.palette.light.main,
-                                  transform: 'none',
-                                },
-                              }}
-                            >
-                              Post
-                            </Button>
-                            <Button
-                              variant="text"
-                              color="inherit"
-                              onClick={() => setEditingDrafts((p) => { const n = { ...p }; delete n[top.id]; return n; })}
-                              sx={{ textTransform: 'none', height: 36, px: 1 }}
-                            >
-                              Cancel
-                            </Button>
-                          </Stack>
-                        </Paper>
-                      </Box>
+                      <EditComposer
+                        commentId={top.id}
+                        initialText={editingDrafts[top.id]}
+                        onClose={() => setEditingDrafts((p) => { const n = { ...p }; delete n[top.id]; return n; })}
+                      />
                     ) : (
                       <Typography sx={{ mt: 0.75 }}>{top?.status === 'deleted' ? '(deleted)' : renderBody(top.body)}</Typography>
                     )}
@@ -1067,89 +1228,12 @@ const TrapDetailsPage: React.FC = () => {
                     </Stack>
                     )}
                     {replyDrafts[top.id] !== undefined && (
-                      <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                        <Avatar src={composerProfile?.photoURL || currentUser?.photoURL || undefined} sx={{ width: 24, height: 24 }} />
-                        <Box sx={{ flex: 1 }}>
-                          <Paper elevation={0} sx={{ p: 0.5, borderRadius: 1.5, bgcolor: alpha(currentTheme.palette.light.main, 0.02), border: `1px solid ${surfaceBorder}` }}>
-                            <InputBase
-                              placeholder="Add a reply…"
-                              value={replyDrafts[top.id]}
-                              onChange={(e) => setReplyDrafts((p) => ({ ...p, [top.id]: e.target.value }))}
-                              multiline
-                              minRows={1}
-                              sx={(theme) => ({
-                                px: 1,
-                                py: 0.5,
-                                width: '100%',
-                                '& .MuiInputBase-input::placeholder': {
-                                  ...theme.typography.body1,
-                                },
-                                '& .MuiInputBase-input': {
-                                  ...theme.typography.body1,
-                                },
-                                '& .MuiInputBase-inputMultiline': {
-                                  ...theme.typography.body1,
-                                },
-                              })}
-                              disabled={!currentUser || !(composerProfile?.displayName || currentUser?.displayName)}
-                            />
-                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', px: 0.5, pb: 0.5 }}>
-                              <Button
-                                variant="outlined"
-                                color="brand"
-                                disabled={!currentUser || !(composerProfile?.displayName || currentUser?.displayName) || !replyDrafts[top.id]?.trim()}
-                                onClick={() => {
-                                  if (!trapId) return;
-                                  const body = (replyDrafts[top.id] || '').trim();
-                                  if (!body) return;
-                                  const tempId = addOptimisticComment(body, top.id);
-                                  setReplyDrafts((p) => { const n = { ...p }; delete n[top.id]; return n; });
-                                  if (!tempId) return;
-                                  addComment({ trapId: trapId, body, parentId: top.id })
-                                    .then((res) => {
-                                      replaceOptimisticCommentId(tempId, res.id, res.threadId);
-                                    })
-                                    .catch(() => {
-                                      removeOptimisticComment(tempId);
-                                    });
-                                }}
-                                sx={{
-                                  textTransform: 'none',
-                                  height: 32,
-                                  px: 1,
-                                  borderRadius: 2,
-                                  color: 'dark.main',
-                                  position: 'relative',
-                                  overflow: 'hidden',
-                                  border: `1px solid ${alpha(currentTheme.palette.brand.main, 0.45)}`,
-                                  bgcolor: currentTheme.palette.brand.main,
-                                  boxShadow: 'none',
-                                  transition: 'transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease',
-                                  '&:hover': {
-                                    transform: 'translateY(-1px)',
-                                    borderColor: alpha(currentTheme.palette.brand.main, 0.6),
-                                  },
-                                  '&:active': {
-                                    transform: 'translateY(0)',
-                                  },
-                                  '&:focus-visible': {
-                                    outline: `2px solid ${alpha(currentTheme.palette.brand.main, 0.6)}`,
-                                    outlineOffset: '2px',
-                                  },
-                                  '&.Mui-disabled': {
-                                    bgcolor: alpha(currentTheme.palette.light.main, 0.14),
-                                    borderColor: alpha(currentTheme.palette.light.main, 0.18),
-                                    color: currentTheme.palette.light.main,
-                                    transform: 'none',
-                                  },
-                                }}
-                              >
-                                Post
-                              </Button>
-                            </Box>
-                          </Paper>
-                        </Box>
-                      </Stack>
+                      <ReplyComposer
+                        replyToId={top.id}
+                        parentTopId={top.id}
+                        initialText={replyDrafts[top.id]}
+                        onClose={() => setReplyDrafts((p) => { const n = { ...p }; delete n[top.id]; return n; })}
+                      />
                     )}
 
                     {replies.length > 0 && (
@@ -1217,72 +1301,11 @@ const TrapDetailsPage: React.FC = () => {
                                 )}
                               </Stack>
                               {editingDrafts[r.id] !== undefined ? (
-                                <Box sx={{ mt: 0.5 }}>
-                                  <Paper elevation={0} sx={{ p: 0.5, borderRadius: 1.5, bgcolor: alpha(currentTheme.palette.light.main, 0.02), border: `1px solid ${surfaceBorder}` }}>
-                                    <InputBase
-                                      value={editingDrafts[r.id]}
-                                      onChange={(e) => setEditingDrafts((p) => ({ ...p, [r.id]: e.target.value }))}
-                                      multiline
-                                      minRows={1}
-                                      sx={{ px: 1, py: 0.5, width: '100%' }}
-                                    />
-                                    <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end', px: 0.5, pb: 0.5 }}>
-                                      <Button
-                                        variant="outlined"
-                                        color="brand"
-                                        disabled={!editingDrafts[r.id]?.trim()}
-                                        onClick={() => {
-                                          if (!trapId) return;
-                                          const value = (editingDrafts[r.id] || '').trim();
-                                          const prev = comments.byId[r.id];
-                                          setEditingDrafts((p) => { const n = { ...p }; delete n[r.id]; return n; });
-                                          setComments((p) => ({ ...p, byId: { ...p.byId, [r.id]: { ...prev, body: value, status: 'edited' } as any } } as any));
-                                          editComment(trapId, r.id, value).catch(() => {
-                                            setComments((p) => ({ ...p, byId: { ...p.byId, [r.id]: prev } } as any));
-                                          });
-                                        }}
-                                        sx={{
-                                          textTransform: 'none',
-                                          height: 36,
-                                          px: 1.25,
-                                          borderRadius: 2,
-                                          color: 'dark.main',
-                                          position: 'relative',
-                                          overflow: 'hidden',
-                                          border: `1px solid ${alpha(currentTheme.palette.brand.main, 0.45)}`,
-                                          bgcolor: currentTheme.palette.brand.main,
-                                          boxShadow: 'none',
-                                          transition: 'transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease',
-                                          '&:hover': {
-                                            transform: 'translateY(-1px)',
-                                            borderColor: alpha(currentTheme.palette.brand.main, 0.6),
-                                          },
-                                          '&:active': { transform: 'translateY(0)' },
-                                          '&:focus-visible': {
-                                            outline: `2px solid ${alpha(currentTheme.palette.brand.main, 0.6)}`,
-                                            outlineOffset: '2px',
-                                          },
-                                          '&.Mui-disabled': {
-                                            bgcolor: alpha(currentTheme.palette.light.main, 0.14),
-                                            borderColor: alpha(currentTheme.palette.light.main, 0.18),
-                                            color: currentTheme.palette.light.main,
-                                            transform: 'none',
-                                          },
-                                        }}
-                                      >
-                                        Post
-                                      </Button>
-                                      <Button
-                                        variant="text"
-                                        color="inherit"
-                                        onClick={() => setEditingDrafts((p) => { const n = { ...p }; delete n[r.id]; return n; })}
-                                        sx={{ textTransform: 'none', height: 36, px: 1 }}
-                                      >
-                                        Cancel
-                                      </Button>
-                                    </Stack>
-                                  </Paper>
-                                </Box>
+                                <EditComposer
+                                  commentId={r.id}
+                                  initialText={editingDrafts[r.id]}
+                                  onClose={() => setEditingDrafts((p) => { const n = { ...p }; delete n[r.id]; return n; })}
+                                />
                               ) : (
                                 <Typography variant="body2" sx={{ mt: 0.5 }}>{r?.status === 'deleted' ? '(deleted)' : renderBody(r.body)}</Typography>
                               )}
@@ -1325,90 +1348,12 @@ const TrapDetailsPage: React.FC = () => {
                               </Stack>
                               )}
                               {replyDrafts[r.id] !== undefined && (
-                                <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                                  <Avatar src={composerProfile?.photoURL || currentUser?.photoURL || undefined} sx={{ width: 24, height: 24 }} />
-                                  <Box sx={{ flex: 1 }}>
-                                    <Paper elevation={0} sx={{ p: 0.5, borderRadius: 1.5, bgcolor: alpha(currentTheme.palette.light.main, 0.02), border: `1px solid ${surfaceBorder}` }}>
-                                      <InputBase
-                                        placeholder="Add a reply…"
-                                        value={replyDrafts[r.id]}
-                                        onChange={(e) => setReplyDrafts((p) => ({ ...p, [r.id]: e.target.value }))}
-                                        multiline
-                                        minRows={1}
-                                        sx={(theme) => ({
-                                          px: 1,
-                                          py: 0.5,
-                                          width: '100%',
-                                          '& .MuiInputBase-input::placeholder': {
-                                            ...theme.typography.body1,
-                                          },
-                                          '& .MuiInputBase-input': {
-                                            ...theme.typography.body1,
-                                          },
-                                          '& .MuiInputBase-inputMultiline': {
-                                            ...theme.typography.body1,
-                                          },
-                                        })}
-                                        disabled={!currentUser || !(composerProfile?.displayName || currentUser?.displayName)}
-                                      />
-                                      
-                                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', px: 0.5, pb: 0.5 }}>
-                                        <Button
-                                          variant="outlined"
-                                          color="brand"
-                                          disabled={!currentUser || !(composerProfile?.displayName || currentUser?.displayName) || !replyDrafts[r.id]?.trim()}
-                                          onClick={() => {
-                                            if (!trapId) return;
-                                            const body = (replyDrafts[r.id] || '').trim();
-                                            if (!body) return;
-                                            const tempId = addOptimisticComment(body, topId);
-                                            setReplyDrafts((p) => { const n = { ...p }; delete n[r.id]; return n; });
-                                            if (!tempId) return;
-                                            addComment({ trapId: trapId, body, parentId: r.id })
-                                              .then((res) => {
-                                                replaceOptimisticCommentId(tempId, res.id, res.threadId);
-                                              })
-                                              .catch(() => {
-                                                removeOptimisticComment(tempId);
-                                              });
-                                          }}
-                                          sx={{
-                                            textTransform: 'none',
-                                            height: 32,
-                                            px: 1,
-                                            borderRadius: 2,
-                                            color: 'dark.main',
-                                            position: 'relative',
-                                            overflow: 'hidden',
-                                            border: `1px solid ${alpha(currentTheme.palette.brand.main, 0.45)}`,
-                                            bgcolor: currentTheme.palette.brand.main,
-                                            boxShadow: 'none',
-                                            transition: 'transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease',
-                                            '&:hover': {
-                                              transform: 'translateY(-1px)',
-                                              borderColor: alpha(currentTheme.palette.brand.main, 0.6),
-                                            },
-                                            '&:active': {
-                                              transform: 'translateY(0)',
-                                            },
-                                            '&:focus-visible': {
-                                              outline: `2px solid ${alpha(currentTheme.palette.brand.main, 0.6)}`,
-                                              outlineOffset: '2px',
-                                            },
-                                            '&.Mui-disabled': {
-                                              bgcolor: alpha(currentTheme.palette.light.main, 0.14),
-                                              borderColor: alpha(currentTheme.palette.light.main, 0.18),
-                                              color: currentTheme.palette.light.main,
-                                              transform: 'none',
-                                            },
-                                          }}
-                                        >
-                                          Post
-                                        </Button>
-                                      </Box>
-                                    </Paper>
-                                  </Box>
-                                </Stack>
+                                <ReplyComposer
+                                  replyToId={r.id}
+                                  parentTopId={topId}
+                                  initialText={replyDrafts[r.id]}
+                                  onClose={() => setReplyDrafts((p) => { const n = { ...p }; delete n[r.id]; return n; })}
+                                />
                               )}
                             </Box>
                           );

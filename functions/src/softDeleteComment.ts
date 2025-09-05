@@ -31,7 +31,7 @@ export const softDeleteComment = onCall(async (request) => {
     throw new HttpsError("permission-denied", "Anon not allowed.");
   }
 
-  await enforceRateLimit(uid, "softDeleteComment", 20, 60);
+  await enforceRateLimit(uid, "softDeleteComment", 50, 60);
 
   const {trapId, commentId} = (request.data ?? {}) as DeletePayload;
   if (!trapId || !commentId) {
@@ -47,7 +47,8 @@ export const softDeleteComment = onCall(async (request) => {
     try {
       const userDoc = await db.collection("users").doc(uid).get();
       isAdmin = userDoc.exists ? Boolean(userDoc.get("admin")) : false;
-    } catch {
+    } catch (err) {
+      isAdmin = false;
     }
   }
 

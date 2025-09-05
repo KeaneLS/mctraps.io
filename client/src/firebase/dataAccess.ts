@@ -1,5 +1,5 @@
 import { db, functions, storage } from "./config";
-import { collection, addDoc, getDocs, QueryDocumentSnapshot, DocumentData, query, orderBy, limit, startAfter, doc, getDoc, where, collectionGroup } from "firebase/firestore";
+import { collection, addDoc, getDocs, QueryDocumentSnapshot, DocumentData, query, orderBy, limit, startAfter, doc, getDoc, where, collectionGroup, documentId } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { ensureAnonymousUser } from "./authentication";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -408,17 +408,25 @@ export async function readTrapComments(
     topIds.push(entity.id);
   }
 
-  const replyQueries = topIds.map((tid) => (
+  // batch reply loads
+  const makeChunks = <T,>(arr: T[], size: number): T[][] => {
+    const chunks: T[][] = [];
+    for (let i = 0; i < arr.length; i += size) {
+      chunks.push(arr.slice(i, i + size));
+    }
+    return chunks;
+  };
+  const replyChunkQueries = makeChunks(topIds, 10).map((batch) => (
     getDocs(
       query(
         commentsRef,
         where('trapId', '==', trapId),
-        where('parentId', '==', tid),
+        where('parentId', 'in', batch),
         orderBy('createdAt', 'asc')
       )
     )
   ));
-  const replySnaps = await Promise.all(replyQueries);
+  const replySnaps = await Promise.all(replyChunkQueries);
 
   for (const rs of replySnaps) {
     for (const d of rs.docs) {
@@ -504,22 +512,40 @@ export async function resolveUserProfiles(
   if (unique.length === 0) return {};
 
   const results: Record<string, UserProfile> = {};
-  const tasks = unique.map(async (uid) => {
-    const ref = doc(db, 'users', uid);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) return;
-    const data = snap.data() as {
-      displayName?: string | null;
-      photoURL?: string | null;
-      discordUsername?: string | null;
-    };
-    results[uid] = {
-      displayName: data.displayName ?? null,
-      photoURL: data.photoURL ?? null,
-      discordUsername: data.discordUsername ?? null,
-    };
-  });
-  await Promise.all(tasks);
+  const usersCol = collection(db, 'users');
+
+  const makeChunks = <T,>(arr: T[], size: number): T[][] => {
+    const chunks: T[][] = [];
+    for (let i = 0; i < arr.length; i += size) {
+      chunks.push(arr.slice(i, i + size));
+    }
+    return chunks;
+  };
+
+  const chunked = makeChunks(unique, 10);
+  const snaps = await Promise.all(
+    chunked.map((batch) =>
+      getDocs(
+        query(usersCol, where(documentId(), 'in', batch))
+      )
+    )
+  );
+
+  for (const snap of snaps) {
+    for (const d of snap.docs) {
+      const data = d.data() as {
+        displayName?: string | null;
+        photoURL?: string | null;
+        discordUsername?: string | null;
+      };
+      results[d.id] = {
+        displayName: data.displayName ?? null,
+        photoURL: data.photoURL ?? null,
+        discordUsername: data.discordUsername ?? null,
+      };
+    }
+  }
+
   return results;
 }
 
@@ -555,16 +581,14 @@ export async function readUserCommentVotes(
 ): Promise<Record<string, 1 | -1 | 0>> {
   const results: Record<string, 1 | -1 | 0> = {};
   if (!trapId || !uid || commentIds.length === 0) return results;
-  const tasks = commentIds.map(async (cid) => {
-    try {
-      const ref = doc(db, 'traps', trapId, 'comments', cid, 'votes', uid);
-      const snap = await getDoc(ref);
-      const value = snap.exists() ? (snap.get('value') as number) : 0;
-      const v = value === 1 ? 1 : value === -1 ? -1 : 0;
-      results[cid] = v as 1 | -1 | 0;
-    } catch {}
-  });
-  await Promise.all(tasks);
+  const callable = httpsCallable(functions, 'resolveUserVotes');
+  try {
+    const res = await callable({ trapId, commentIds });
+    const data = (res.data as Record<string, number>) || {};
+    for (const [k, v] of Object.entries(data)) {
+      results[k] = v === 1 ? 1 : v === -1 ? -1 : 0;
+    }
+  } catch {}
   return results;
 }
 
@@ -592,6 +616,19 @@ export async function setTrapRating(
   const callable = httpsCallable(functions, 'setTrapRating');
   const res = await callable({ trapId, value });
   return res.data as { average: number; count: number };
+}
+
+export async function readUserTrapRating(
+  trapId: string,
+  uid: string
+): Promise<0 | 1 | 2 | 3 | 4 | 5 | 6 | null> {
+  if (!trapId || !uid) return null;
+  const ref = doc(db, 'traps', trapId, 'ratings', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return null;
+  const value = snap.get('value') as number | undefined;
+  return (value === 0 || value === 1 || value === 2 || value === 3 ||
+    value === 4 || value === 5 || value === 6) ? value : null;
 }
 
 export async function reviewTrap(input: {

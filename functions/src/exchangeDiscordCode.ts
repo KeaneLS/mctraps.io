@@ -39,8 +39,8 @@ export const exchangeDiscordCode = onCall({
     await enforceRateLimit(
       callerUid,
       "exchangeDiscordCode",
-      5, // 5 FOR TESTING
-      60
+      10,
+      3600
     );
   }
   const {

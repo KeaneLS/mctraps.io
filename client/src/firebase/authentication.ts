@@ -161,10 +161,10 @@ async function waitForAuthInit(): Promise<User | null> {
 export async function ensureAnonymousUser(): Promise<User> {
   const existing = await waitForAuthInit();
   if (existing) {
-    try { await getIdToken(existing, true); } catch {}
+    try { await getIdToken(existing); } catch {}
     return existing;
   }
   const cred = await signInAnonymously(auth);
-  try { await getIdToken(cred.user, true); } catch {}
+  try { await getIdToken(cred.user); } catch {}
   return cred.user;
 }

@@ -9,6 +9,7 @@ import {softDeleteComment} from "./softDeleteComment";
 import {setTrapRating} from "./setTrapRating";
 import {submitTrapForReview} from "./submitTrapForReview";
 import {reviewTrap} from "./reviewTrap";
+import {resolveUserVotes} from "./resolveUserVotes";
 if (getApps().length === 0) {
   initializeApp();
 }
@@ -23,3 +24,4 @@ export {softDeleteComment};
 export {setTrapRating};
 export {submitTrapForReview};
 export {reviewTrap};
+export {resolveUserVotes};

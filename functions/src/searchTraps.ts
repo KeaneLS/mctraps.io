@@ -80,7 +80,7 @@ export const searchTraps = onCall(async (request) => {
       "Log in (anonymously) before calling searchTraps."
     );
   }
-  await enforceRateLimit(uid, "searchTraps", 5, 60); // 5 FOR TESTING
+  await enforceRateLimit(uid, "searchTraps", 30, 60);
   const payload = (request.data ?? {}) as FilterPayload;
 
   const trapsRef = db.collection("traps");

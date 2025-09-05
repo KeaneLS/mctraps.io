@@ -304,6 +304,7 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
                 type="email"
                 fullWidth
                 value={email}
+                inputProps={{ maxLength: 254 }}
                 onChange={(e) => { setEmail(e.target.value); if (resetSent) setResetSent(false); }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && isResetMode && !resetSent) {
@@ -330,6 +331,7 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
                 type={showPassword ? 'text' : 'password'}
                 fullWidth
                 value={password}
+                inputProps={{ maxLength: 128 }}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -627,6 +629,7 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
                 type="email"
                 fullWidth
                 value={email}
+                inputProps={{ maxLength: 254 }}
                 onChange={(e) => { setEmail(e.target.value); if (resetSent) setResetSent(false); }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && isResetMode && !resetSent) {
@@ -653,6 +656,7 @@ const Login: React.FC<LoginProps> = ({ isSignup: isSignupProp, embedded, isReset
                 type={showPassword ? 'text' : 'password'}
                 fullWidth
                 value={password}
+                inputProps={{ maxLength: 128 }}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {

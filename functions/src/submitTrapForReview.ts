@@ -100,7 +100,7 @@ export const submitTrapForReview = onCall(async (request) => {
     throw new HttpsError("permission-denied", "Anonymous not allowed.");
   }
 
-  await enforceRateLimit(uid, "submitTrapForReview", 10, 60);
+  await enforceRateLimit(uid, "submitTrapForReview", 10, 3600);
 
   const {
     name,

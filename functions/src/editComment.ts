@@ -29,7 +29,7 @@ export const editComment = onCall(async (request) => {
     throw new HttpsError("permission-denied", "Anon not allowed.");
   }
 
-  await enforceRateLimit(uid, "editComment", 20, 60);
+  await enforceRateLimit(uid, "editComment", 12, 60);
 
   const {trapId, commentId, body} = (request.data ?? {}) as EditPayload;
   if (!trapId || !commentId) {

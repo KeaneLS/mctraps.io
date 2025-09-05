@@ -27,7 +27,7 @@ export const setCommentVote = onCall(async (request) => {
     throw new HttpsError("permission-denied", "Anonymous not allowed.");
   }
 
-  await enforceRateLimit(uid, "setCommentVote", 30, 60);
+  await enforceRateLimit(uid, "setCommentVote", 60, 60);
 
   const {trapId, commentId, value} = (request.data ?? {}) as VotePayload;
   if (!trapId || !commentId) {

@@ -18,7 +18,7 @@ import { useAuth } from '../firebase/authContext';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { submitTrapForReview } from '../firebase/dataAccess';
 
 type MinigameOption = 'UHC' | 'SMP' | 'HCF' | 'Hoplite' | 'Skywars' | 'Walls' | 'Speed UHC';
@@ -28,6 +28,7 @@ const allMinigames: MinigameOption[] = ['UHC','SMP','HCF','Hoplite','Skywars','W
 const allTypes: TypeOption[] = ['Main','Backup','Hybrid'];
 
 const UploadTrap: React.FC = () => {
+  const navigate = useNavigate();
   const [mode, setMode] = React.useState<AppThemeMode>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -164,6 +165,11 @@ const UploadTrap: React.FC = () => {
       try { console.log('Submitted trap for review:', id); } catch {}
       setError(null);
       setTrapName(''); setCreators(''); setDescription(''); setMinigames([]); setTypes([]); setInventedDate(null); setYoutubeUrl(''); setThumbnailFile(null); setThumbnailPreview(undefined);
+      try {
+        const msg = 'Your trap has been successfully uploaded and is now pending review by our staff. You will receive an email with the status update once it has been accepted or denied. (Be sure to check your junk or spam folder!)';
+        window.localStorage.setItem('globalToast', msg);
+      } catch {}
+      navigate('/home');
     } catch (e: any) {
       const msg = e?.message || 'Submission failed. Please try again.';
       setError(msg);
@@ -185,6 +191,7 @@ const UploadTrap: React.FC = () => {
             sx={{
               width: '100%',
               maxWidth: 560,
+              mx: 'auto',
               borderRadius: 2,
               px: 3,
               py: 3,
@@ -258,6 +265,7 @@ const UploadTrap: React.FC = () => {
                       <TextField
                         fullWidth
                         value={trapName}
+                        inputProps={{ maxLength: 120 }}
                         onChange={(e) => setTrapName(e.target.value)}
                         placeholder="Enter a concise, descriptive name"
                         variant="outlined"
@@ -276,6 +284,7 @@ const UploadTrap: React.FC = () => {
                       <TextField
                         fullWidth
                         value={creators}
+                        inputProps={{ maxLength: 300 }}
                         onChange={(e) => setCreators(e.target.value)}
                         placeholder="Comma separate multiple creators (e.g., user1, user2)"
                         variant="outlined"
@@ -338,6 +347,7 @@ const UploadTrap: React.FC = () => {
                           slotProps={{
                             textField: {
                               size: 'small',
+                              inputProps: { maxLength: 10 },
                               sx: {
                                 minWidth: 320,
                                 '& .MuiOutlinedInput-root': { height: 36 },
@@ -357,6 +367,7 @@ const UploadTrap: React.FC = () => {
                       <TextField
                         fullWidth
                         value={youtubeUrl}
+                        inputProps={{ maxLength: 2048 }}
                         onChange={(e) => setYoutubeUrl(e.target.value)}
                         placeholder="https://www.youtube.com/watch?v=..."
                         variant="outlined"
@@ -377,6 +388,7 @@ const UploadTrap: React.FC = () => {
                         multiline
                         minRows={4}
                         value={description}
+                        inputProps={{ maxLength: 2000 }}
                         onChange={(e) => setDescription(e.target.value)}
                         placeholder="Describe how the trap works, tips, and variations"
                         variant="outlined"
@@ -440,6 +452,7 @@ const UploadTrap: React.FC = () => {
                         variant="outlined"
                         color="brand"
                         onClick={onPublish}
+                        disabled={isSubmitting}
                         sx={{
                           minWidth: 120,
                           px: 2,
@@ -462,6 +475,12 @@ const UploadTrap: React.FC = () => {
                           '&:focus-visible': {
                             outline: `2px solid ${alpha(currentTheme.palette.brand.main, 0.6)}`,
                             outlineOffset: '2px',
+                          },
+                          '&.Mui-disabled': {
+                            bgcolor: alpha(currentTheme.palette.light.main, 0.14),
+                            borderColor: alpha(currentTheme.palette.light.main, 0.18),
+                            color: currentTheme.palette.light.main,
+                            transform: 'none',
                           },
                         }}
                       >

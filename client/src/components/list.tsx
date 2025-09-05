@@ -100,7 +100,7 @@ const SearchBar: React.FC<{
       <Divider orientation="vertical" flexItem sx={{ borderColor: surfaceBorder }} />
       <InputBase
         placeholder="Search..."
-        inputProps={{ 'aria-label': 'search traps' }}
+        inputProps={{ 'aria-label': 'search traps', maxLength: 100 }}
         sx={{ flex: 1, px: 1.25, py: 0.75 }}
         value={text}
         onChange={(e) => setText(e.target.value)}

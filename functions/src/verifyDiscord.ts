@@ -27,7 +27,7 @@ export const verifyDiscord = onCall(async (request) => {
       "User must be authenticated to verify Discord."
     );
   }
-  await enforceRateLimit(uid, "verifyDiscord", 5, 60); // 5 FOR TESTING
+  await enforceRateLimit(uid, "verifyDiscord", 10, 60);
 
   const {
     displayName,

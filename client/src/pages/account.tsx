@@ -344,6 +344,7 @@ const AccountPage: React.FC = () => {
                   <TextField
                     fullWidth
                     value={username}
+                    inputProps={{ maxLength: 30 }}
                     onChange={handleUsernameChange}
                     placeholder={initialUsername ? undefined : 'Create your username!'}
                     label="Username"

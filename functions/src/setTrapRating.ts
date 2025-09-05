@@ -28,7 +28,7 @@ export const setTrapRating = onCall(async (request) => {
     throw new HttpsError("permission-denied", "Anonymous not allowed.");
   }
 
-  await enforceRateLimit(uid, "setTrapRating", 20, 60);
+  await enforceRateLimit(uid, "setTrapRating", 30, 60);
 
   const {trapId, value} = (request.data ?? {}) as Payload;
   if (!trapId) {
